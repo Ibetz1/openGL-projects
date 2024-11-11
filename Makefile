@@ -18,7 +18,7 @@ TARGET = $(BUILDDIR)/main.exe
 .PHONY: build run clean
 
 # Build target that cleans and then builds
-build: clean $(TARGET) copy_assets
+build: dirs clean $(TARGET) copy_assets
 
 # Main executable
 $(TARGET): $(OBJECTS) | $(BUILDDIR)
@@ -29,8 +29,10 @@ $(BUILDDIR)/%.o: $(SRCDIR)/%.cpp | $(BUILDDIR)
 	$(CXX) $(CXXFLAGS) $< -o $@
 
 # Create build directory if it doesn't exist
-$(BUILDDIR):
-	@if not exist $(BUILDDIR) mkdir $(BUILDDIR)
+dirs:
+	if not exist $(BUILDDIR) mkdir $(BUILDDIR)
+	if not exist $(SHADERDIR) mkdir $(SHADERDIR)
+	if not exist $(ASSETSDIR) mkdir $(ASSETSDIR)
 
 # Copy assets folder to build directory
 copy_assets: $(BUILDDIR)
