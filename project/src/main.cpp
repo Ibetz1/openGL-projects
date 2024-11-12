@@ -3,210 +3,161 @@
 float sw = 800.f;
 float sh = 800.f;
 
-struct Texture {
-    typedef enum {
-        TEXST_UNLOADED,
-        TEXST_LOADED,
-    } TextureState;
+struct Camera {
+    glm::vec3 position;
+    glm::vec3 orientation;
+    glm::vec3 up;
 
-    typedef enum {
-        TTYPE_TEXTURE,
-        TTYPE_SPECULAR,
-        TTYPE_DIFFUSE,
-        TTYPE_NORMAL,
-        TTYPE_MAX,
-    } TextureType;
+    float pitch = 0.0f;
+    float yaw = 0.0f;
 
-    static constexpr const char* type_str[TTYPE_MAX] = {
-        [TTYPE_TEXTURE] = "texture",
-        [TTYPE_SPECULAR] = "specular",
-        [TTYPE_DIFFUSE] = "diffuse",
-        [TTYPE_NORMAL] = "normal",
-    };
+    float cam_speed;
+    float cam_sense;
+    float fov;
+    float near_plane;
+    float far_plane;
 
-    GLuint id;
-    TextureState state;
-    TextureType type;
-
-    // creates texture
-    static Texture create() {
-        Texture tex = { 0 };
+    static Camera create() {
+        Camera camera = {  };
+        camera.position = glm::vec3(0);
+        camera.orientation = glm::vec3(0.f, 0.f, -1.0f);
+        camera.up = glm::vec3(0.0f, 1.0f, 0.0f);
         
-        tex.state = TEXST_UNLOADED;
+        camera.cam_speed = 10.f;
+        camera.cam_sense = 0.1f;
+        camera.fov = 45.f;
+        camera.near_plane = 0.1f;
+        camera.far_plane = 100.f;
 
-        return tex;
+        return camera;
     }
 
-    static Texture create(const char* file, TextureType type) {
-        Texture tex = create();
-        load(&tex, file, type);
-        return tex;
+    static void destroy(Camera* camera) {
+        if (!camera) return;
+
+        *camera = {  };
     }
 
-    // destroys texture
-    static void destroy(Texture* tex) {
-        if (!tex) return;
+    static void pass_matrix(const Camera* camera, GLFWwindow* window, const ShaderProgram* shader, const char* vpuni) {
+        if (!camera) return;
+        if (!shader) return;
+        if (!window) return;
 
-        // delete texture
-        glDeleteTextures(1, &tex->id);
+        int width, height;
+        glfwGetFramebufferSize(window, &width, &height);
 
-        *tex = { 0 };
+        glm::mat4 view = glm::mat4(1.0f);
+        glm::mat4 projection = glm::mat4(1.0f);
+        
+        view = glm::lookAt(camera->position, camera->position + camera->orientation, camera->up);
+
+        projection = glm::perspective(
+            glm::radians(camera->fov), 
+            (float) width / (float) height, 
+            camera->near_plane, 
+            camera->far_plane
+        );
+
+        ShaderProgram::set_uniform_maxtrix_4fv(shader, vpuni, (GLfloat*) glm::value_ptr(projection * view));
     }
 
-    // load texture into class
-    static void load(Texture* tex, const char* file, TextureType type) {
-        if (!tex) return;
+    static void apply_inputs(Camera* camera, GLFWwindow* window, float dt) {
+        if (!camera) return;
+        if (!window) return;
 
-        if (tex->state == TEXST_LOADED) {
-            LOGE("texture object already loaded");
-            return;
+        if (glfwGetKey(window, GLFW_KEY_W)) {
+            camera->position += camera->cam_speed * dt * camera->orientation;
         }
 
-        // get color mode
-        GLenum colmod;
-        if (strstr(file, ".png")) {
-            colmod = GL_RGBA;
-        } else if (strstr(file, ".jpg")) {
-            colmod = GL_RGB;
+        if (glfwGetKey(window, GLFW_KEY_A)) {
+            camera->position -= camera->cam_speed * dt * glm::normalize(glm::cross(camera->orientation, camera->up));
+        }
+
+        if (glfwGetKey(window, GLFW_KEY_S)) {
+            camera->position -= camera->cam_speed * dt * camera->orientation;
+        }
+
+        if (glfwGetKey(window, GLFW_KEY_D)) {
+            camera->position += camera->cam_speed * dt * glm::normalize(glm::cross(camera->orientation, camera->up));
+        }
+
+        if (glfwGetKey(window, GLFW_KEY_SPACE)) {
+            camera->position.y += camera->cam_speed * dt;
+        
+        }
+
+        if (glfwGetKey(window, GLFW_KEY_C)) {
+            camera->position.y -= camera->cam_speed * dt;
+        }
+    }
+
+    static void apply_mouse(Camera* camera, double xpos, double ypos) {
+        static bool firstMouse = true;
+        static float lastX = 0.0f;
+        static float lastY = 0.0f;
+
+        if (firstMouse) {
+            lastX = xpos;
+            lastY = ypos;
+            firstMouse = false;
+        }
+
+        float xoffset = xpos - lastX;
+        float yoffset = lastY - ypos; // Reversed since y-coordinates go from bottom to top
+        lastX = xpos;
+        lastY = ypos;
+
+        xoffset *= camera->cam_sense;
+        yoffset *= camera->cam_sense;
+
+        camera->yaw += xoffset;
+        camera->pitch += yoffset;
+
+        // Clamp the pitch to avoid screen flip
+        if (camera->pitch > 89.0f) camera->pitch = 89.0f;
+        if (camera->pitch < -89.0f) camera->pitch = -89.0f;
+
+        // Update orientation vector
+        glm::vec3 newOrientation;
+        newOrientation.x = cos(glm::radians(camera->yaw)) * cos(glm::radians(camera->pitch));
+        newOrientation.y = sin(glm::radians(camera->pitch));
+        newOrientation.z = sin(glm::radians(camera->yaw)) * cos(glm::radians(camera->pitch));
+        camera->orientation = glm::normalize(newOrientation);
+    }
+};
+
+void mouse_callback_wrapper(GLFWwindow* window, double xpos, double ypos) {
+    Camera* camera = (Camera*) (glfwGetWindowUserPointer(window));
+    if (camera) {
+        Camera::apply_mouse(camera, xpos, ypos);
+    }
+}
+
+// Variable to store the previous key state
+bool cursor_locked = true;
+bool ctrl_was_pressed = false;
+
+void handle_cursor_lock(GLFWwindow* window) {
+    int ctrl_state = glfwGetKey(window, GLFW_KEY_LEFT_CONTROL);
+
+    // Check for a transition from pressed to released
+    if (ctrl_state == GLFW_RELEASE && ctrl_was_pressed) {
+        if (cursor_locked) {
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
         } else {
-            LOGE("invalid file type");
-            return;
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
         }
-
-        int iw, ih, colCh;
-        stbi_set_flip_vertically_on_load(true);
-        unsigned char* bytes = stbi_load("assets/tex.png", &iw, &ih, &colCh, 0);
-
-        if (!bytes) {
-            LOGE("failed to load image file");
-            return;
-        }
-
-        // load the texture
-        GLuint texture;
-        glGenTextures(1, &texture);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, texture);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        glTexImage2D(GL_TEXTURE_2D, 0, colmod, iw, ih, 0, colmod, GL_UNSIGNED_BYTE, bytes);
-        glGenerateMipmap(GL_TEXTURE_2D);
-        stbi_image_free(bytes);
-        glBindTexture(GL_TEXTURE_2D, 0);
-
-        tex->id = texture;
-        tex->state = TEXST_LOADED;
-        tex->type = type;
-
-        LOGI("texture loaded %s", file);
-    }
-
-    // binds texture
-    static void bind(const Texture* tex) {
-        if (!tex) return;
-
-        if (tex->state == TEXST_UNLOADED) {
-            LOGE("cannot bind unloaded texture");
-            return;
-        }
-
-        glBindTexture(GL_TEXTURE_2D, tex->id);
-    }
-
-    // unbinds all textures
-    static void unbind() {
-        glBindTexture(GL_TEXTURE_2D, 0);
-    }
-};
-
-struct Mesh {
-    std::vector<Vertex> vertices;
-    std::vector<GLuint> indices;
-    std::vector<Texture> textures;
-
-    VertexArray VAO;
-    VertexBuffer VBO;
-    ElementBuffer EBO;
-
-    // creates a mesh
-    static Mesh create(
-        const std::vector<Vertex>& vertices, 
-        const std::vector<GLuint>& indices,
-        const std::vector<Texture>& textures
-    ) {
-        Mesh mesh;
-
-        mesh.vertices = vertices;
-        mesh.indices = indices;
-        mesh.textures = textures;
-
-        mesh.VAO = VertexArray::create();
-        mesh.VBO = VertexBuffer::create(mesh.vertices);
-        mesh.EBO = ElementBuffer::create(mesh.indices);
-
-        VertexArray::add_attribute(&mesh.VAO, VertexArray::vertex_position_attribute);
-        VertexArray::add_attribute(&mesh.VAO, VertexArray::vertex_normal_attribute);
-        VertexArray::add_attribute(&mesh.VAO, VertexArray::vertex_color_attribute);
-        VertexArray::add_attribute(&mesh.VAO, VertexArray::vertex_texUV_attribute);
-
-        VertexArray::unbind();
-        VertexBuffer::unbind();
-        ElementBuffer::unbind();
-
-        return mesh;
-    }
-
-    // destroys a mesh
-    static void destroy(Mesh* mesh) {
-        if (!mesh) return;
-
-        VertexArray::destroy(&mesh->VAO);
-        VertexBuffer::destroy(&mesh->VBO);
-        ElementBuffer::destroy(&mesh->EBO);
-
-        mesh->vertices.clear();
-        mesh->indices.clear();
-    }
-
-    // draws mesh with shader
-    static void draw(Mesh* mesh, ShaderProgram* shader) {
-        if (!mesh) return;
-
-        ShaderProgram::activate(shader);
-
-        int tex_counts[Texture::TTYPE_MAX] = {
-            [Texture::TTYPE_TEXTURE] = 0,
-            [Texture::TTYPE_SPECULAR] = 0,
-            [Texture::TTYPE_DIFFUSE] = 0,
-            [Texture::TTYPE_NORMAL] = 0,
-        };
-
-        // bind mesh textures
-        //! TODO: offload to build time
-        for (size_t i = 0; i < mesh->textures.size(); i++) {
-            const Texture& tex = mesh->textures[i];
-
-            const char* type_str = std::string(
-                Texture::type_str[tex.type] + 
-                tex_counts[tex.type]
-            ).c_str();
-
-            tex_counts[tex.type]++;
-
-            ShaderProgram::set_uniform_1i(shader, type_str, i);
-            Texture::bind(&tex);
-        }
-
-        VertexArray::bind(&mesh->VAO);
         
-        // ??
-        glDrawElements(GL_TRIANGLES, mesh->indices.size(), GL_UNSIGNED_INT, 0);
-
-        VertexArray::unbind();
+        cursor_locked = !cursor_locked;
     }
-};
+
+    // Update the previous state
+    ctrl_was_pressed = (ctrl_state == GLFW_PRESS);
+}
+
+void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
+    glViewport(0, 0, width, height);
+}
 
 int main(void)
 {
@@ -223,6 +174,8 @@ int main(void)
     }
 
     glfwMakeContextCurrent(window);
+
+
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
         LOGE("glad init failed");
@@ -231,6 +184,14 @@ int main(void)
         return -1;
     }
 
+    glEnable(GL_DEPTH_TEST);
+
+    // setup camera
+    Camera camera = Camera::create();
+    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+    glfwSetWindowUserPointer(window, &camera);
+    glfwSetCursorPosCallback(window, mouse_callback_wrapper);
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
     ShaderProgram shader = ShaderProgram::create();
     ShaderProgram::add(&shader, "shaders/triangle.frag");
@@ -300,12 +261,17 @@ int main(void)
     float rotspeed = 100.f;
     double prevtime = glfwGetTime();
 
-    glEnable(GL_DEPTH_TEST);
-
     while (!glfwWindowShouldClose(window))
     {
+        if (glfwGetKey(window, GLFW_KEY_ESCAPE)) {
+            glfwSetWindowShouldClose(window, GLFW_TRUE);
+        }
+
+        handle_cursor_lock(window);
+
         // Render background
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glClearColor(0.1, 0.1, 0.1, 1.0);
 
         double curtime = glfwGetTime();
         double dt = curtime - prevtime;
@@ -315,21 +281,14 @@ int main(void)
         rotation = fmodf(rotation, 360.0f);
 
         glm::mat4 model = glm::mat4(1.0f);
-        glm::mat4 view = glm::mat4(1.0f);
-        glm::mat4 projection = glm::mat4(1.0f);
-
         model = glm::rotate(model, glm::radians(rotation), glm::vec3(0.5f, 0.5f, 0.0f));
-        view = glm::translate(view, glm::vec3(0.0, -0.5, -5.0f));
-        projection = glm::perspective(glm::radians(45.f), sw / sh, 0.1f, 100.0f);
-
         ShaderProgram::set_uniform_maxtrix_4fv(&shader, "model", glm::value_ptr(model));
-        ShaderProgram::set_uniform_maxtrix_4fv(&shader, "view", glm::value_ptr(view));
-        ShaderProgram::set_uniform_maxtrix_4fv(&shader, "projection", glm::value_ptr(projection));
 
-        // Draw the triangle
+        Camera::apply_inputs(&camera, window, dt);
+        Camera::pass_matrix(&camera, window, &shader, "view");
+
         Mesh::draw(&mesh, &shader);
 
-        // Swap buffers and poll for events
         glfwSwapBuffers(window);
         glfwPollEvents();
     }

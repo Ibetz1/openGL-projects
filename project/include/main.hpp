@@ -29,6 +29,7 @@
 #include "gl_vertex_buffer.hpp"
 #include "gl_element_buffer.hpp"
 #include "gl_vertex_array.hpp"
+#include "gl_texture.hpp"
 #include "gl_mesh.hpp"
 
 #endif
