@@ -1,5 +1,62 @@
 #include "main.hpp"
 
+//! TODO: textures
+struct Mesh {
+    std::vector<Vertex> vertices;
+    std::vector<GLuint> indices;
+
+    VertexArray VAO;
+    VertexBuffer VBO;
+    ElementBuffer EBO;
+
+    static Mesh create(const std::vector<Vertex>& vertices, const std::vector<GLuint>& indices) {
+        Mesh mesh;
+
+        mesh.vertices = vertices;
+        mesh.indices = indices;
+
+        mesh.VAO = VertexArray::create();
+        mesh.VBO = VertexBuffer::create(mesh.vertices);
+        mesh.EBO = ElementBuffer::create(mesh.indices);
+
+        VertexArray::add_attribute(&mesh.VAO, VertexArray::vertex_position_attribute);
+        VertexArray::add_attribute(&mesh.VAO, VertexArray::vertex_normal_attribute);
+        VertexArray::add_attribute(&mesh.VAO, VertexArray::vertex_color_attribute);
+        VertexArray::add_attribute(&mesh.VAO, VertexArray::vertex_texUV_attribute);
+
+        VertexArray::unbind();
+        VertexBuffer::unbind();
+        ElementBuffer::unbind();
+
+        return mesh;
+    }
+
+    static void destroy(Mesh* mesh) {
+        if (!mesh) return;
+
+        VertexArray::destroy(&mesh->VAO);
+        VertexBuffer::destroy(&mesh->VBO);
+        ElementBuffer::destroy(&mesh->EBO);
+
+        mesh->vertices.clear();
+        mesh->indices.clear();
+    }
+
+    //! TODO: camera
+    static void draw(Mesh* mesh, ShaderProgram* shader) {
+        if (!mesh) return;
+
+        ShaderProgram::run(shader);
+        VertexArray::bind(&mesh->VAO);
+        
+        // ??
+        glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_INT, 0);
+
+        VertexArray::unbind();
+    }
+
+};
+
 int main(void)
 {
     GLFWwindow* window;
@@ -28,32 +85,17 @@ int main(void)
     ShaderProgram::add(&shader, "shaders/triangle.vert");
     ShaderProgram::link(&shader);
 
-    // Define the vertices for the triangle
-    float vertices[] = {
-         0.0f,  0.5f, 0.0f,  // top
-        -0.5f, -0.5f, 0.0f,  // bottom left
-         0.5f, -0.5f, 0.0f   // bottom right
+    std::vector<Vertex> vertices = {
+        { { 0.0f,  0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f} },
+        { {-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f} },
+        { { 0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f} },
     };
 
-    // Set up vertex buffer and vertex array objects
-    unsigned int VBO, VAO;
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
+    std::vector<GLuint> indices = {
+        0, 1, 2
+    };
 
-    // Bind the Vertex Array Object
-    glBindVertexArray(VAO);
-
-    // Bind and set the vertex buffer
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-    // Configure vertex attributes
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    // Unbind buffer and array
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
+    Mesh mesh = Mesh::create(vertices, indices);
 
     while (!glfwWindowShouldClose(window))
     {
@@ -61,9 +103,7 @@ int main(void)
         glClear(GL_COLOR_BUFFER_BIT);
 
         // Draw the triangle
-        ShaderProgram::run(&shader);
-        glBindVertexArray(VAO);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        Mesh::draw(&mesh, &shader);
 
         // Swap buffers and poll for events
         glfwSwapBuffers(window);

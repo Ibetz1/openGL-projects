@@ -4,5 +4,5 @@ out vec4 fragColor;
 in vec3 color;
 
 void main() {
-    fragColor = vec4(color * 0.5 + 0.5, 1.0); // RGBA color
+    fragColor = vec4(color, 1.0); // RGBA color
 }

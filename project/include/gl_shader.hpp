@@ -9,8 +9,8 @@ struct ShaderProgram {
         PRGM_LINKED,
     } ProgramStatus;
 
-    GLint id;
-    GLint shaders[max_shaders];
+    GLuint id;
+    GLuint shaders[max_shaders];
     int num_shaders;
     ProgramStatus status;
 
