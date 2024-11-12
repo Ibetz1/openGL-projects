@@ -2,17 +2,20 @@
 #define _MAIN_HPP
 
 #include <iostream>
-#include "string.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include "sys/stat.h"
 #include <vector>
+#include <string.h>
+#include <sys/stat.h>
 
-#include <stdio.h>
 #include "glad/glad.h"
-#include "GL/gl.h"
+#include <GL/gl.h>
 #include <GLFW/glfw3.h>
-#include "glm/glm.hpp"
+#include <glm/glm.hpp>
+#include <glm/matrix.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+#include <stb/stb_image.h>
 
 #define type_alloc(T) (T*) malloc(sizeof(T))
 #define check_alloc(ptr) ({ if (!ptr) LOGE("allocation failed, non mem"); ptr; })

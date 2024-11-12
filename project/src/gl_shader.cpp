@@ -1,8 +1,5 @@
 #include "main.hpp"
 
-/*
-    create a shader program
-*/
 ShaderProgram ShaderProgram::create() {
     ShaderProgram program = { 0 };
 
@@ -13,9 +10,6 @@ ShaderProgram ShaderProgram::create() {
     return program;
 }
 
-/*
-    free up a shader program
-*/
 void ShaderProgram::destroy(ShaderProgram* program) {
     if (!program) return;
 
@@ -29,9 +23,6 @@ void ShaderProgram::destroy(ShaderProgram* program) {
 
 }
 
-/*
-    add and compile a shader to a shader program via the file path
-*/
 void ShaderProgram::add(ShaderProgram* program, const char* path) {
     if (!program) return;
 
@@ -111,9 +102,6 @@ void ShaderProgram::add(ShaderProgram* program, const char* path) {
     program->num_shaders++;
 }
 
-/*
-    link a shader program for after shaders have been added
-*/
 void ShaderProgram::link(ShaderProgram* program) {
     if (!program) return;
 
@@ -141,10 +129,7 @@ void ShaderProgram::link(ShaderProgram* program) {
     program->status = PRGM_LINKED;
 }
 
-/*
-    use a compiled and linked shader program
-*/
-void ShaderProgram::run(const ShaderProgram* program) {
+void ShaderProgram::activate(const ShaderProgram* program) {
     if (!program) return;
 
     if (program->status == PRGM_UNLINKED) {
@@ -153,4 +138,18 @@ void ShaderProgram::run(const ShaderProgram* program) {
     }
 
     glUseProgram(program->id);
+}
+
+/*
+    setting uniforms
+*/
+
+void ShaderProgram::set_uniform_1i(const ShaderProgram* program, const char* name, GLint uni) {
+    GLuint uniID = glGetUniformLocation(program->id, name);
+    glUniform1i(uniID, uni);
+}
+
+void ShaderProgram::set_uniform_maxtrix_4fv(const ShaderProgram* program, const char* name, GLfloat* data) {
+    GLuint uniID = glGetUniformLocation(program->id, name);
+    glUniformMatrix4fv(uniID, 1, GL_FALSE, data);
 }

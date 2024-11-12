@@ -47,9 +47,9 @@ const VertexArray::Attribute VertexArray::vertex_normal_attribute = {
 };
 
 const VertexArray::Attribute VertexArray::vertex_color_attribute = { 
-    2, 3, GL_FLOAT, true, sizeof(Vertex), (void*) (6 * sizeof(float))
+    2, 4, GL_FLOAT, true, sizeof(Vertex), (void*) (6 * sizeof(float))
 };
 
 const VertexArray::Attribute VertexArray::vertex_texUV_attribute = {
-    3, 2, GL_FLOAT, true, sizeof(Vertex), (void*) (9 * sizeof(float))
+    3, 2, GL_FLOAT, true, sizeof(Vertex), (void*) (10 * sizeof(float))
 };

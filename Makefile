@@ -3,7 +3,7 @@ CXX = gcc
 CXXFLAGS = -Iproject/include -Ilib -Wall -c
 
 # Libraries and paths
-LDFLAGS = -Llib -lglad -lglfw3 -lopengl32 -lgdi32 -lstdc++
+LDFLAGS = -Llib -lglad -lglfw3 -lopengl32 -lgdi32 -lstdc++ -lstb
 
 # Directories and files
 SRCDIR = project/src
