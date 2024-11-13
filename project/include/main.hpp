@@ -26,7 +26,7 @@
 
 // game objects
 #include "world_object.hpp"
-#include "camera.hpp"
+#include "world_camera.hpp"
 
 // mesh
 #include "gl_vertex.hpp"

@@ -3,8 +3,6 @@
 float sw = 800.f;
 float sh = 800.f;
 
-
-
 std::vector<Vertex> vertices = {
     // Front face
     {{ 0.5f,  0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}}, // top right
@@ -127,19 +125,24 @@ int main(void)
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetCursorPosCallback(window, mouse_callback_wrapper);
 
-    ShaderProgram shader = ShaderProgram::create();
-    ShaderProgram::add(&shader, "shaders/triangle.frag");
-    ShaderProgram::add(&shader, "shaders/triangle.vert");
-    ShaderProgram::link(&shader);
-
-    Texture texture = Texture::create("assets/tex.png", Texture::TTYPE_TEXTURE);
-
-    Mesh mesh = Mesh::create(vertices, indices, { texture });
-
+    // define world objects
     WorldObject camera_object = WorldObject::create();
     WorldObject mesh_object = WorldObject::create();
     WorldObject mesh_object1 = WorldObject::create(glm::vec3(3, 0, 0));
 
+    // create a shader program
+    ShaderProgram shader = ShaderProgram::create();
+    ShaderProgram::add(&shader, "shaders/triangle.frag");
+    ShaderProgram::add(&shader, "shaders/triangle.vert");
+    ShaderProgram::link(&shader);
+    
+    // load a texture
+    Texture texture = Texture::create("assets/tex.png", Texture::TTYPE_TEXTURE);
+    
+    // load a mesh
+    Mesh mesh = Mesh::create(vertices, indices, { texture });
+    
+    // define camera
     Camera camera = Camera::create(window, &camera_object);
     Camera::bind(&camera);
 
