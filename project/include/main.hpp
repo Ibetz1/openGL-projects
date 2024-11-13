@@ -24,6 +24,10 @@
 
 #include "gl_shader.hpp"
 
+// game objects
+#include "world_object.hpp"
+#include "camera.hpp"
+
 // mesh
 #include "gl_vertex.hpp"
 #include "gl_vertex_buffer.hpp"
@@ -31,5 +35,6 @@
 #include "gl_vertex_array.hpp"
 #include "gl_texture.hpp"
 #include "gl_mesh.hpp"
+
 
 #endif

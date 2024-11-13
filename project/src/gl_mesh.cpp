@@ -41,7 +41,7 @@ void Mesh::destroy(Mesh* mesh) {
 }
 
 // draws mesh with shader
-void Mesh::draw(Mesh* mesh, ShaderProgram* shader) {
+void Mesh::draw(Mesh* mesh, ShaderProgram* shader, WorldObject* object) {
     if (!mesh) return;
 
     ShaderProgram::activate(shader);
@@ -70,7 +70,13 @@ void Mesh::draw(Mesh* mesh, ShaderProgram* shader) {
     }
 
     VertexArray::bind(&mesh->VAO);
-    
+
+    ShaderProgram::set_uniform_maxtrix_4fv(
+        shader, 
+        "model", 
+        (GLfloat*) glm::value_ptr(WorldObject::get_model_matrix(object)
+    ));
+
     // ??
     glDrawElements(GL_TRIANGLES, mesh->indices.size(), GL_UNSIGNED_INT, 0);
 

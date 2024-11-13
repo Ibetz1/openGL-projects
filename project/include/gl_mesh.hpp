@@ -21,7 +21,7 @@ struct Mesh {
     static void destroy(Mesh* mesh);
 
     // draws mesh with shader
-    static void draw(Mesh* mesh, ShaderProgram* shader);
+    static void draw(Mesh* mesh, ShaderProgram* shader, WorldObject* model);
 };
 
 #endif
