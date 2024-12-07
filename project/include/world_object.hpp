@@ -6,8 +6,9 @@ struct WorldObject {
     float yaw;
     glm::vec3 facing;
     glm::vec3 position;
+    glm::vec3 scale;
 
-    static WorldObject create(glm::vec3 position = glm::vec3(0), float pitch = 0.f, float yaw = 0.f);
+    static WorldObject create(glm::vec3 position = glm::vec3(0), float pitch = 0.f, float yaw = 0.f, glm::vec3 scale = glm::vec3(1));
 
     static void destroy(WorldObject* object);
 

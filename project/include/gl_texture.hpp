@@ -22,6 +22,7 @@ struct Texture {
         [TTYPE_NORMAL] = "normal",
     };
 
+    GLuint tex_unit;
     GLuint id;
     TextureState state;
     TextureType type;
@@ -30,7 +31,7 @@ struct Texture {
     static Texture create();
 
     // create and load
-    static Texture create(const char* file, TextureType type);
+    static Texture create(const char* file, TextureType type, GLuint tex_idx);
 
     // destroys texture
     static void destroy(Texture* tex);
@@ -40,6 +41,9 @@ struct Texture {
 
     // binds texture
     static void bind(const Texture* tex);
+
+    // pass texture unit to shader
+    static void assign_unit(const Texture* tex, const ShaderProgram* shader, const char* uni);
 
     // unbinds all textures
     static void unbind();

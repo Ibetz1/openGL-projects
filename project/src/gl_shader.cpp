@@ -144,12 +144,28 @@ void ShaderProgram::activate(const ShaderProgram* program) {
     setting uniforms
 */
 
-void ShaderProgram::set_uniform_1i(const ShaderProgram* program, const char* name, GLint uni) {
+void ShaderProgram::set_uniform_1i(const ShaderProgram* program, const char* name, GLint data) {
     GLuint uniID = glGetUniformLocation(program->id, name);
-    glUniform1i(uniID, uni);
+    glUniform1i(uniID, data);
 }
 
-void ShaderProgram::set_uniform_maxtrix_4fv(const ShaderProgram* program, const char* name, GLfloat* data) {
+void ShaderProgram::set_uniform_1f(const ShaderProgram* program, const char* name, GLfloat data) {
+    GLuint uniID = glGetUniformLocation(program->id, name);
+    glUniform1f(uniID, data);
+}
+
+void ShaderProgram::set_uniform_3fv(const ShaderProgram* program, const char* name, GLfloat* data) {
+    GLuint uniID = glGetUniformLocation(program->id, name);
+    glUniform3fv(uniID, 1, data);
+}
+
+void ShaderProgram::set_uniform_4fv(const ShaderProgram* program, const char* name, GLfloat* data) {
+    GLuint uniID = glGetUniformLocation(program->id, name);
+    glUniform4fv(uniID, 1, data);
+}
+
+void ShaderProgram::set_uniform_matrix_4fv(const ShaderProgram* program, const char* name, GLfloat* data) {
     GLuint uniID = glGetUniformLocation(program->id, name);
     glUniformMatrix4fv(uniID, 1, GL_FALSE, data);
 }
+

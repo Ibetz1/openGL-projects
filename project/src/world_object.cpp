@@ -1,10 +1,11 @@
 #include "main.hpp"
 
-WorldObject WorldObject::create(glm::vec3 position, float pitch, float yaw) {
+WorldObject WorldObject::create(glm::vec3 position, float pitch, float yaw, glm::vec3 scale) {
     WorldObject object = { };
 
     object.facing = glm::vec3(0);
     object.position = position;
+    object.scale = scale;
     set_orientation(&object, pitch, yaw);
 
     return object;
@@ -43,6 +44,7 @@ glm::mat4 WorldObject::get_model_matrix(WorldObject* object) {
     model = glm::translate(model, object->position);
     model = glm::rotate(model, glm::radians(object->yaw), glm::vec3(0, 1, 0));
     model = glm::rotate(model, glm::radians(object->pitch), glm::vec3(1, 0, 0));
+    model = glm::scale(model, object->scale);
 
     return model;
 }

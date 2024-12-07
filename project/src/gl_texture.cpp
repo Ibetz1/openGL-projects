@@ -9,8 +9,10 @@ Texture Texture::create() {
     return tex;
 }
 
-Texture Texture::create(const char* file, TextureType type) {
+Texture Texture::create(const char* file, TextureType type, GLuint tex_idx) {
     Texture tex = create();
+    tex.tex_unit = tex_idx;
+
     load(&tex, file, type);
     return tex;
 }
@@ -20,6 +22,7 @@ void Texture::destroy(Texture* tex) {
     if (!tex) return;
 
     // delete texture
+    unbind();
     glDeleteTextures(1, &tex->id);
 
     *tex = { 0 };
@@ -47,7 +50,7 @@ void Texture::load(Texture* tex, const char* file, TextureType type) {
 
     int iw, ih, colCh;
     stbi_set_flip_vertically_on_load(true);
-    unsigned char* bytes = stbi_load("assets/tex.png", &iw, &ih, &colCh, 0);
+    unsigned char* bytes = stbi_load(file, &iw, &ih, &colCh, 0);
 
     if (!bytes) {
         LOGE("failed to load image file");
@@ -57,7 +60,7 @@ void Texture::load(Texture* tex, const char* file, TextureType type) {
     // load the texture
     GLuint texture;
     glGenTextures(1, &texture);
-    glActiveTexture(GL_TEXTURE0);
+    glActiveTexture(tex->tex_unit);
     glBindTexture(GL_TEXTURE_2D, texture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -75,6 +78,11 @@ void Texture::load(Texture* tex, const char* file, TextureType type) {
     LOGI("texture loaded %s", file);
 }
 
+// gets tex unit relatived to unit 0
+void Texture::assign_unit(const Texture* tex, const ShaderProgram* shader, const char* uni) {
+    ShaderProgram::set_uniform_1i(shader, uni, tex->tex_unit - GL_TEXTURE0);
+}
+
 // binds texture
 void Texture::bind(const Texture* tex) {
     if (!tex) return;
@@ -84,6 +92,7 @@ void Texture::bind(const Texture* tex) {
         return;
     }
 
+    glActiveTexture(tex->tex_unit);
     glBindTexture(GL_TEXTURE_2D, tex->id);
 }
 

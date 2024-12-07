@@ -7,6 +7,7 @@
 #include <vector>
 #include <string.h>
 #include <sys/stat.h>
+#include <map>
 
 #include "glad/glad.h"
 #include <GL/gl.h>

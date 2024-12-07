@@ -9,6 +9,7 @@ struct Mesh {
     VertexArray VAO;
     VertexBuffer VBO;
     ElementBuffer EBO;
+    float texture_tile_count;
 
     // creates a mesh
     static Mesh create(

@@ -29,7 +29,10 @@ struct Camera {
     static glm::mat4 get_perspective(Camera* camera);
 
     // passes viewport to a shader
-    static void apply_viewport(Camera* camera, ShaderProgram* shader, const char* unfiorm);
+    static void apply_viewport(Camera* camera, ShaderProgram* shader, const char* uniform);
+
+    // passed position to a shader
+    static void apply_position(Camera* camera, ShaderProgram* shader, const char* uniform);
 
     // applies camera movement "WASD"
     static void apply_inputs(Camera* camera, float dt);

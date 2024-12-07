@@ -36,8 +36,19 @@ struct ShaderProgram {
     // set 1int unfirom
     static void set_uniform_1i(const ShaderProgram* program, const char* name, GLint uni);
 
-    // set 4fv uniform
-    static void set_uniform_maxtrix_4fv(const ShaderProgram* progam, const char* name, GLfloat* uni);
+    // set a float uniform
+    static void set_uniform_1f(const ShaderProgram* program, const char* name, GLfloat data);
+
+    // set 4fv vector uniform
+    static void set_uniform_4fv(const ShaderProgram* progam, const char* name, GLfloat* uni);
+
+    // set 3fv vector unfiform
+    static void set_uniform_3fv(const ShaderProgram* program, const char* name, GLfloat* uni);
+
+    // set 4fv matrix uniform
+    static void set_uniform_matrix_4fv(const ShaderProgram* progam, const char* name, GLfloat* uni);
+
+
 };
 
 #endif

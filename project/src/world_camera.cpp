@@ -66,13 +66,22 @@ glm::mat4 Camera::get_perspective(Camera* camera) {
     return projection * view;
 }
 
-void Camera::apply_viewport(Camera* camera, ShaderProgram* shader, const char* unfiorm) {
+void Camera::apply_viewport(Camera* camera, ShaderProgram* shader, const char* uniform) {
     // apply camera perspective
-    ShaderProgram::set_uniform_maxtrix_4fv(
+    ShaderProgram::set_uniform_matrix_4fv(
         shader, 
-        unfiorm, 
-        (GLfloat*) glm::value_ptr(get_perspective(camera)
-    ));
+        uniform, 
+        (GLfloat*) glm::value_ptr(get_perspective(camera))
+    );
+}
+
+void Camera::apply_position(Camera* camera, ShaderProgram* shader, const char* uniform) {
+    // apply camera perspective
+    ShaderProgram::set_uniform_3fv(
+        shader, 
+        uniform, 
+        (GLfloat*) glm::value_ptr(camera->object_binding->position)
+    );
 }
 
 void Camera::apply_inputs(Camera* camera, float dt) {

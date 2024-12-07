@@ -8,6 +8,7 @@ Mesh Mesh::create(
 ) {
     Mesh mesh;
 
+
     mesh.vertices = vertices;
     mesh.indices = indices;
     mesh.textures = textures;
@@ -20,6 +21,8 @@ Mesh Mesh::create(
     VertexArray::add_attribute(&mesh.VAO, VertexArray::vertex_normal_attribute);
     VertexArray::add_attribute(&mesh.VAO, VertexArray::vertex_color_attribute);
     VertexArray::add_attribute(&mesh.VAO, VertexArray::vertex_texUV_attribute);
+
+    mesh.texture_tile_count = 1.f;
 
     VertexArray::unbind();
     VertexBuffer::unbind();
@@ -44,7 +47,17 @@ void Mesh::destroy(Mesh* mesh) {
 void Mesh::draw(Mesh* mesh, ShaderProgram* shader, WorldObject* object) {
     if (!mesh) return;
 
-    ShaderProgram::activate(shader);
+    ShaderProgram::set_uniform_matrix_4fv(
+        shader, 
+        "model", 
+        (GLfloat*) glm::value_ptr(WorldObject::get_model_matrix(object)
+    ));
+
+    ShaderProgram::set_uniform_1f(
+        shader,
+        "texTileCount",
+        mesh->texture_tile_count
+    );
 
     int tex_counts[Texture::TTYPE_MAX] = {
         [Texture::TTYPE_TEXTURE] = 0,
@@ -54,31 +67,27 @@ void Mesh::draw(Mesh* mesh, ShaderProgram* shader, WorldObject* object) {
     };
 
     // bind mesh textures
-    //! TODO: offload to build time
     for (size_t i = 0; i < mesh->textures.size(); i++) {
         const Texture& tex = mesh->textures[i];
 
         const char* type_str = std::string(
             Texture::type_str[tex.type] + 
-            tex_counts[tex.type]
+            std::to_string(tex_counts[tex.type])
         ).c_str();
 
         tex_counts[tex.type]++;
 
-        ShaderProgram::set_uniform_1i(shader, type_str, i);
+        Texture::assign_unit(&tex, shader, type_str);
+
         Texture::bind(&tex);
     }
 
     VertexArray::bind(&mesh->VAO);
 
-    ShaderProgram::set_uniform_maxtrix_4fv(
-        shader, 
-        "model", 
-        (GLfloat*) glm::value_ptr(WorldObject::get_model_matrix(object)
-    ));
-
     // ??
     glDrawElements(GL_TRIANGLES, mesh->indices.size(), GL_UNSIGNED_INT, 0);
 
     VertexArray::unbind();
+
+    Texture::unbind();
 }
