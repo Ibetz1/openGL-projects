@@ -3,15 +3,11 @@
 // creates a mesh
 Mesh Mesh::create(
     const std::vector<Vertex>& vertices, 
-    const std::vector<GLuint>& indices,
-    const std::vector<Texture>& textures
+    const std::vector<GLuint>& indices
 ) {
     Mesh mesh;
-
-
     mesh.vertices = vertices;
     mesh.indices = indices;
-    mesh.textures = textures;
 
     mesh.VAO = VertexArray::create();
     mesh.VBO = VertexBuffer::create(mesh.vertices);
@@ -21,8 +17,6 @@ Mesh Mesh::create(
     VertexArray::add_attribute(&mesh.VAO, VertexArray::vertex_normal_attribute);
     VertexArray::add_attribute(&mesh.VAO, VertexArray::vertex_color_attribute);
     VertexArray::add_attribute(&mesh.VAO, VertexArray::vertex_texUV_attribute);
-
-    mesh.texture_tile_count = 1.f;
 
     VertexArray::unbind();
     VertexBuffer::unbind();
@@ -44,43 +38,14 @@ void Mesh::destroy(Mesh* mesh) {
 }
 
 // draws mesh with shader
-void Mesh::draw(Mesh* mesh, ShaderProgram* shader, WorldObject* object) {
+void Mesh::draw(const Mesh* mesh, const WorldObject* binding, const ShaderProgram* shader) {
     if (!mesh) return;
 
     ShaderProgram::set_uniform_matrix_4fv(
         shader, 
         "model", 
-        (GLfloat*) glm::value_ptr(WorldObject::get_model_matrix(object)
+        (GLfloat*) glm::value_ptr(WorldObject::get_model_matrix(binding)
     ));
-
-    ShaderProgram::set_uniform_1f(
-        shader,
-        "texTileCount",
-        mesh->texture_tile_count
-    );
-
-    int tex_counts[Texture::TTYPE_MAX] = {
-        [Texture::TTYPE_TEXTURE] = 0,
-        [Texture::TTYPE_SPECULAR] = 0,
-        [Texture::TTYPE_DIFFUSE] = 0,
-        [Texture::TTYPE_NORMAL] = 0,
-    };
-
-    // bind mesh textures
-    for (size_t i = 0; i < mesh->textures.size(); i++) {
-        const Texture& tex = mesh->textures[i];
-
-        const char* type_str = std::string(
-            Texture::type_str[tex.type] + 
-            std::to_string(tex_counts[tex.type])
-        ).c_str();
-
-        tex_counts[tex.type]++;
-
-        Texture::assign_unit(&tex, shader, type_str);
-
-        Texture::bind(&tex);
-    }
 
     VertexArray::bind(&mesh->VAO);
 

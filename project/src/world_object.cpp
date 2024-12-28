@@ -36,7 +36,7 @@ void WorldObject::set_position(WorldObject* object, glm::vec3 position) {
     object->position = position;
 }
 
-glm::mat4 WorldObject::get_model_matrix(WorldObject* object) {
+glm::mat4 WorldObject::get_model_matrix(const WorldObject* object) {
     glm::mat4 model = glm::mat4(1);
 
     if (!object) return model;

@@ -4,25 +4,22 @@
 struct Mesh {
     std::vector<Vertex> vertices;
     std::vector<GLuint> indices;
-    std::vector<Texture> textures;
 
     VertexArray VAO;
     VertexBuffer VBO;
     ElementBuffer EBO;
-    float texture_tile_count;
 
     // creates a mesh
     static Mesh create(
         const std::vector<Vertex>& vertices, 
-        const std::vector<GLuint>& indices,
-        const std::vector<Texture>& textures
+        const std::vector<GLuint>& indices
     );
 
     // destroys a mesh
     static void destroy(Mesh* mesh);
 
     // draws mesh with shader
-    static void draw(Mesh* mesh, ShaderProgram* shader, WorldObject* model);
+    static void draw(const Mesh* mesh, const WorldObject* binding, const ShaderProgram* shader);
 };
 
 #endif

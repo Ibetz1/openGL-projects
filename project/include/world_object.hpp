@@ -16,7 +16,7 @@ struct WorldObject {
 
     static void set_position(WorldObject* object, glm::vec3 position);
 
-    static glm::mat4 get_model_matrix(WorldObject* object);
+    static glm::mat4 get_model_matrix(const WorldObject* object);
 };
 
 

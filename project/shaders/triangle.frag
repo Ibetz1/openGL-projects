@@ -6,26 +6,38 @@ in vec3 iPosition;
 in vec3 iNormal;
 in vec2 iTexCoord;
 
-uniform sampler2D texture0;
-uniform sampler2D specular0;
-uniform vec4 lightColor;
-uniform vec3 lightPosition;
+struct Light {
+    vec4 Color;
+    vec3 Position;
+    float Intensity;
+    float Brightness;
+};
+
+uniform Light lights[10];
+uniform int numLights;
+
 uniform vec3 cameraPosition;
 
 void main() {
-    const float ambient = 0.1f;
-    const float specularLight = 0.75f;
+    const float ambient = 0.3f;
+    const float specularLight = 0.1f;
 
-    vec4 texColor = texture(texture0, iTexCoord);
-    vec4 specColor = texture(specular0, iTexCoord);
+    vec4 texColor = vec4(0.5);
+    vec4 specColor = vec4(1);
 
     vec3 normal = normalize(iNormal);
-    vec3 lightDirection = normalize(lightPosition - iPosition);
-    vec3 viewDirection = normalize(cameraPosition - iPosition);
-    vec3 reflectionDirection = reflect(-lightDirection, normal);
-    float specAmount = pow(max(dot(viewDirection, reflectionDirection), 0.0f), 16);
-    float specular = specAmount * specularLight;
-    float diffuse = max(dot(normal, lightDirection), 0.0);
-    
-    fragColor = ((diffuse + ambient) * texColor + specular * specColor.r) * lightColor;
+    vec4 finalColor = vec4(0.0);
+
+    for (int i = 0; i < numLights; i++) {
+        vec3 lightDirection = normalize(lights[i].Position - iPosition);
+        vec3 viewDirection = normalize(cameraPosition - iPosition);
+        vec3 reflectionDirection = reflect(-lightDirection, normal);
+        float specAmount = pow(max(dot(viewDirection, reflectionDirection), 0.0f), 16);
+        float specular = specAmount * specularLight;
+        float diffuse = max(dot(normal, lightDirection), 0.0) * lights[i].Intensity;
+        
+        finalColor += ((diffuse + ambient) * texColor + specular * specColor.r) * lights[i].Color * lights[i].Brightness;
+    }
+
+    fragColor = finalColor;
 }
