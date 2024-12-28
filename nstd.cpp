@@ -6,6 +6,7 @@
 #include <vector>
 #include <unordered_map>
 #include <cassert>
+#include <bits/stdc++.h> 
 
 #define type_alloc(T) (T*) malloc(sizeof(T))
 #define LOGI(fmt, ...) printf(fmt "\n", ##__VA_ARGS__)
@@ -114,6 +115,9 @@ struct Node2D {
     }
 };
 
+double removal_time_spent = 0;
+double insertion_time_spent = 0;
+
 // fixed size block of memory
 struct MemBlock {
     MemBlock* next;
@@ -156,12 +160,17 @@ struct MemBlock {
 
     // returns whether an address is aligned with the memory block
     static bool check_addr_alignment(MemBlock* block, char* addr) {
+        char* allocated = block->allocated;
+        size_t chunk_size = block->chunk_size;
+        size_t chunk_count = block->chunk_count;
+
         bool block_exists = block != nullptr;
-        bool addr_above_block = addr >= block->allocated;
-        bool addr_below_max = addr < block->allocated + (block->chunk_count * block->chunk_size);
-        bool addr_chunk_aligned = !((addr - block->allocated) % block->chunk_size);
+        bool addr_above_block = addr >= allocated;
+        bool addr_below_max = addr < allocated + (chunk_count * chunk_size);
+        bool addr_chunk_aligned = !((addr - allocated) % chunk_size);
 
         return block_exists && addr_above_block && addr_below_max && addr_chunk_aligned;
+        // return true;
     }
 
     static bool has_space(MemBlock* block) {
@@ -177,32 +186,36 @@ struct MemBlock {
 
     // inserts a slice of data if it can
     static char* insert(MemBlock* block, char* data) {
-        if (!has_space(block)) {
+        size_t* chunks_free = &block->chunks_free;
+
+        if (!(block && *chunks_free)) {
             LOGE("memory block is full");
             return nullptr;
         }
 
-        char* ref = block->free_list[block->chunks_free - 1];
+        char* ref = block->free_list[*chunks_free - 1];
         memcpy(ref, data, block->chunk_size);
-        block->chunks_free--;
+        --*chunks_free;
 
         return ref;
     }
 
     // removes a slice of data by reference
     static void remove(MemBlock* block, char** data, bool assert_aligned = false) {
+        size_t* chunks_free = &block->chunks_free;
+
         if (!assert_aligned && !check_addr_alignment(block, *data)) {
             LOGE("data malaligned");
             return;
         }
 
-        if (block->chunks_free >= block->chunk_count) {
+        if (*chunks_free >= block->chunk_count) {
             LOGE("block is already empty");
             return;
         }
 
-        block->free_list[block->chunks_free] = *data;
-        block->chunks_free++;
+        *(block->free_list + *chunks_free) = *data;
+        ++*chunks_free;
 
         *data = nullptr;
     }
@@ -258,11 +271,21 @@ struct MemPool {
     }
 
     static char* insert(MemPool* pool, char* data) {
+        auto start = std::chrono::high_resolution_clock::now();
+
         MemBlock* slot = find_availble_block(pool);
-        return MemBlock::insert(slot, data);
+        char* ref = MemBlock::insert(slot, data);
+    
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> duration = end - start;
+        insertion_time_spent += duration.count();
+
+        return ref;
     }
 
     static void remove(MemPool* pool, char** data) {
+        auto start = std::chrono::high_resolution_clock::now();
+
         MemBlock* cur_block = (pool->last_removed) ? pool->last_removed : pool->root;
 
         if (!MemBlock::check_addr_alignment(cur_block, *data)) {
@@ -284,6 +307,10 @@ struct MemPool {
 
         MemBlock::remove(cur_block, data, true);
         pool->last_removed = cur_block;
+
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> duration = end - start;
+        removal_time_spent += duration.count();
     }
 };
 
@@ -297,75 +324,70 @@ void print_ref(char* ref) {
 
 }
 
-#include <bits/stdc++.h> 
 
 int main() {
-    size_t allocations = 100000;
+    size_t allocations = 10000000;
     char** references = (char**) malloc(allocations * sizeof(char*));
     memset(references, 0, allocations * sizeof(char*));
 
     // heap optimized:   block structure: insertion_time = 0.01634000, free_time = 0.02312000
     // heap unoptimized: block structure: insertion_time = 0.02340000, free_time = 0.03842000
 
-    MemPool* block = MemPool::create(allocations / 50, sizeof(int));
+    MemPool* block = MemPool::create(allocations / 500, sizeof(int));
 
-    clock_t start, end;
-    double block_insertion_time, block_free_time = 0;
-    double alloc_insertion_time, alloc_free_time = 0;
-    int count = 50;
-
-    for (int i = 0; i < count ; i++) {
-        start = clock();
-
-        for (int i = 0; i < allocations; i++) {
-            int test = 12345;
-            references[i] = MemPool::insert(block, (char*) &test);
-        }
-
-        end = clock();
-
-        block_insertion_time += double(end - start) / double(CLOCKS_PER_SEC);
-
-        start = clock();
-
-        for (int i = 0; i < allocations; i++) {
-            MemPool::remove(block, &references[i]);
-        }
-
-        end = clock();
-
-        block_free_time += double(end - start) / double(CLOCKS_PER_SEC);
-
-        MemPool::destroy(block);
-        block = MemPool::create(allocations / 50, sizeof(int));
-        memset(references, 0, allocations * sizeof(char*));
-
-        start = clock();
-
-        for (int i = 0; i < allocations; i++) {
-            int test = 12345;
-            char* ref = (char*) malloc(sizeof(int));
-            memcpy(ref, &test, sizeof(int));
-            references[i] = ref;
-        }
-
-        end = clock();
-
-        alloc_insertion_time += double(end - start) / double(CLOCKS_PER_SEC);
-
-        start = clock();
-
-        for (int i = 0; i < allocations; i++) {
-            free(references[i]);
-        }
-
-        end = clock();
-
-        alloc_free_time += double(end - start) / double(CLOCKS_PER_SEC);
+    for (int i = 0; i < allocations; i++) {
+        int test = 12345;
+        references[i] = MemPool::insert(block, (char*) &test);
     }
 
-    printf("block structure: insertion_time = %.8f, free_time = %.8f\n", block_insertion_time / count, block_free_time / count);
-    printf("alloc structure: insertion_time = %.8f, free_time = %.8f\n", alloc_insertion_time / count, alloc_free_time / count);
+    for (int i = 0; i < allocations; i++) {
+        MemPool::remove(block, &references[i]);
+    }
+
+    // block_free_time += double(end - start) / double(CLOCKS_PER_SEC);
+
+    MemPool::destroy(block);
+    block = MemPool::create(allocations / 50, sizeof(int));
+
+
+    // printf("block structure: insertion_time = %.8f, free_time = %.8f\n", block_insertion_time / count, block_free_time / count);
+
+    printf("mempool call: time spent inserting %.8f\n", insertion_time_spent);
+    printf("mempool call: time spent removing %.8f\n", removal_time_spent);
+
+    double alloc_insertion_time_spent;
+    double alloc_removal_time_spent;
+
+    char** alloc_references = (char**) malloc(allocations * sizeof(char*));
+    memset(alloc_references, 0, allocations * sizeof(char*));
+
+    for (int i = 0; i < allocations; i++) {
+        auto start = std::chrono::high_resolution_clock::now();
+
+        int test = 12345;
+        char* test_alloc = (char*) malloc(sizeof(int));
+        memcpy(test_alloc, &test, sizeof(test));
+        alloc_references[i] = test_alloc;
+
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> duration = end - start;
+        alloc_insertion_time_spent += duration.count();
+    }
+
+    for (int i = 0; i < allocations; i ++) {
+        auto start = std::chrono::high_resolution_clock::now();
+
+        char** alloc_ref = &alloc_references[i];
+        free(*alloc_ref);
+        *alloc_ref = nullptr;
+
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> duration = end - start;
+        alloc_removal_time_spent += duration.count();
+    }
+
+    printf("alloc call: time spent inserting %.8f\n", alloc_insertion_time_spent);
+    printf("alloc call: time spent removing %.8f\n", alloc_removal_time_spent);
 
     return 0;
 }
