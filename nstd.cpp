@@ -300,14 +300,14 @@ void print_ref(char* ref) {
 #include <bits/stdc++.h> 
 
 int main() {
-    size_t allocations = 1000000;
+    size_t allocations = 100000;
     char** references = (char**) malloc(allocations * sizeof(char*));
     memset(references, 0, allocations * sizeof(char*));
 
     // heap optimized:   block structure: insertion_time = 0.01634000, free_time = 0.02312000
     // heap unoptimized: block structure: insertion_time = 0.02340000, free_time = 0.03842000
 
-    MemPool* block = MemPool::create(allocations / 500, sizeof(int));
+    MemPool* block = MemPool::create(allocations / 50, sizeof(int));
 
     clock_t start, end;
     double block_insertion_time, block_free_time = 0;
@@ -336,7 +336,8 @@ int main() {
 
         block_free_time += double(end - start) / double(CLOCKS_PER_SEC);
 
-
+        MemPool::destroy(block);
+        block = MemPool::create(allocations / 50, sizeof(int));
         memset(references, 0, allocations * sizeof(char*));
 
         start = clock();
