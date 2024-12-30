@@ -1,5 +1,7 @@
 #include "nstd.hpp"
 
+namespace nstd {
+
 /*
     fixed allocator impl
 */
@@ -41,6 +43,10 @@ void FixedAllocator::destroy(FixedAllocator* block) {
 
 // returns whether an address is aligned with the memory block
 bool FixedAllocator::check_addr_alignment(FixedAllocator* block, char* addr) {
+    if (AUTO_ASSERT_MEMORY_ALIGNED) {
+        return true;
+    }
+
     char* allocated = block->allocated;
     size_t chunk_size = block->chunk_size;
     size_t chunk_count = block->chunk_count;
@@ -51,7 +57,6 @@ bool FixedAllocator::check_addr_alignment(FixedAllocator* block, char* addr) {
     bool addr_chunk_aligned = !((addr - allocated) % chunk_size);
 
     return block_exists && addr_above_block && addr_below_max && addr_chunk_aligned;
-    // return true;
 }
 
 // check if this allocator has space
@@ -112,8 +117,10 @@ ExpandingAllocator* ExpandingAllocator::create(size_t chunk_count, size_t chunk_
 
 // destroys frees existing expanding allocator
 void ExpandingAllocator::destroy(ExpandingAllocator* pool) {
-    FixedAllocator::destroy(pool->root);
-    Mem::dealloc(pool);
+    if (pool) {
+        FixedAllocator::destroy(pool->root);
+        Mem::dealloc(pool);
+    }
 }
 
 // create a new fixed block on the heap
@@ -194,4 +201,272 @@ FixedAllocator* ExpandingAllocator::find_aligned_block(ExpandingAllocator* pool,
     }
 
     return cur_block;
+}
+
+/*
+    fixed array
+*/
+
+FixedArray* FixedArray::create(size_t elements, size_t element_size) {
+    size_t size = elements * element_size;
+
+    FixedArray* array = Mem::type_alloc<FixedArray>(size);
+    Mem::const_copy(&array->size_bytes, &size);
+    Mem::const_copy(&array->elements, &elements);
+    Mem::const_copy(&array->element_size, &element_size);
+
+    Mem::set(array->data, 0, size);
+
+    return array;
+}
+
+FixedArray* FixedArray::create(const char* buffer, size_t elements, size_t element_size) {
+    size_t size = elements * element_size;
+
+    FixedArray* array = Mem::type_alloc<FixedArray>(size);
+    Mem::const_copy(&array->size_bytes, &size);
+    Mem::const_copy(&array->elements, &elements);
+    Mem::const_copy(&array->element_size, &element_size);
+
+    Mem::copy(array->data, buffer, size);
+
+    return array;
+}
+
+void FixedArray::destroy(FixedArray* array) {
+    if (array) {
+        Mem::dealloc(array);
+    }
+}
+
+char* FixedArray::begin(FixedArray* array) {
+    return array->data;
+}
+
+char* FixedArray::end(FixedArray* array) {
+    return array->data + array->size_bytes;
+}
+
+char* FixedArray::at(FixedArray* array, size_t idx) {
+    if (idx >= array->elements) {
+        THROW("index out of bounds");
+        return nullptr;
+    }
+
+    return array->data + idx * array->element_size;
+}
+
+void FixedArray::insert(FixedArray* array, size_t idx, char* data) {
+    if (idx >= array->elements) {
+        THROW("index out of bounds");
+        return;
+    }
+
+    Mem::copy(array->data + idx * array->element_size, data, array->element_size);
+}
+
+void FixedArray::copy(FixedArray* a, FixedArray* b) {
+    if (a->elements != b->elements || a->element_size != b->element_size) {
+        THROW("cannot copy mal aligned arrays");
+        return;
+    }
+
+    Mem::copy(a->data, b->data, a->size_bytes);
+}
+
+bool FixedArray::equals(FixedArray* a, FixedArray* b) {
+    if (a->elements != b->elements || a->element_size != b->element_size) {
+        return false;
+    }
+
+    return Mem::compare(a->data, b->data, a->size_bytes) == 0;
+}
+
+size_t FixedArray::size(FixedArray* array) {
+    return array->elements;
+}
+
+void FixedArray::clear(FixedArray* array) {
+    Mem::set(array->data, 0, array->size_bytes);
+}
+
+/*
+    expanding array
+*/
+
+ExpandingArray* ExpandingArray::create(size_t element_size, size_t reserved) {
+    ExpandingArray* array = Mem::type_alloc<ExpandingArray>();
+    array->data = Mem::alloc<char>(element_size * reserved);
+    Mem::set(array->data, 0, element_size * reserved);
+    Mem::const_copy(&array->element_size, &element_size);
+    Mem::const_copy(&array->reserved, &reserved);
+    array->max_elements = reserved;
+    array->elements_used = 0;
+    return array;
+}
+
+ExpandingArray* ExpandingArray::create(const char* buffer, size_t element_size, size_t num_elements) {
+    ExpandingArray* array = create(element_size, num_elements);
+    Mem::copy(array->data, buffer, element_size * num_elements);
+    array->elements_used = num_elements;
+    return array;
+}
+
+void ExpandingArray::destroy(ExpandingArray* array) {
+    if (array) {
+        Mem::dealloc(array->data);
+        Mem::dealloc(array);
+    }
+}
+
+void ExpandingArray::expand(ExpandingArray* array) {
+    size_t new_size = array->max_elements * 2;
+    array->data = Mem::resize(array->data, new_size * array->element_size);
+    array->max_elements = new_size;
+}
+
+void ExpandingArray::expand(ExpandingArray* array, size_t size) {
+    size_t new_size = array->max_elements + size;
+    array->data = Mem::resize(array->data, new_size * array->element_size);
+    array->max_elements = new_size;
+}
+
+void ExpandingArray::join_raw(ExpandingArray* array, const char* data, size_t size) {
+    size_t new_size = array->elements_used + size;
+
+    if (new_size > array->max_elements) {
+        expand(array, new_size - array->max_elements);
+    }
+
+    Mem::copy(array->data + array->elements_used * array->element_size, data, size);
+}
+
+void ExpandingArray::shrink(ExpandingArray* array) {
+    size_t new_size = (array->elements_used) + 1;
+
+    if (new_size < array->reserved) {
+        new_size = array->reserved;
+    }
+
+    if (new_size == array->max_elements) {
+        return;
+    }
+
+    array->data = Mem::resize(array->data, new_size * array->element_size);
+    array->max_elements = new_size;
+}
+
+void ExpandingArray::push_back(ExpandingArray* array, char* val) {
+    if (array->elements_used - array->max_elements == 0) {
+        expand(array);
+    }
+
+    memcpy(array->data + array->elements_used * array->element_size, val, array->element_size);
+    array->elements_used++;
+}
+
+void ExpandingArray::pop_back(ExpandingArray* array) {
+    array->elements_used--;
+}
+
+char* ExpandingArray::get(ExpandingArray* array, size_t idx) {
+    return array->data + idx * array->element_size;
+}
+
+void ExpandingArray::set(ExpandingArray* array, size_t idx, char* val) {
+    if (idx >= array->elements_used) {
+        THROW("index out of bounds");
+    }
+
+    Mem::copy(get(array, idx), val, array->element_size);
+}
+
+char* ExpandingArray::at(ExpandingArray* array, size_t idx) {
+    if (idx >= array->elements_used) {
+        THROW("index out of bounds");
+    }
+
+    return get(array, idx);
+}
+
+void ExpandingArray::insert(ExpandingArray* array, size_t idx, char* val) {
+    if (idx >= array->elements_used) {
+        THROW("index out of bounds");
+        return; // error
+    }
+
+    if (array->elements_used == array->max_elements) {
+        expand(array);
+    }
+
+    Mem::copy(
+        get(array, idx + 1),
+        get(array, idx),
+        (array->elements_used - idx) * array->element_size
+    );
+
+    Mem::copy(get(array, idx), val, array->element_size);
+    array->elements_used++;
+}
+
+void ExpandingArray::erase(ExpandingArray* array, size_t idx) {
+    if (idx >= array->elements_used) {
+        THROW("index out of bounds");
+        return; // error
+    }
+
+    if (array->elements_used == array->max_elements) {
+        expand(array);
+    }
+
+    Mem::copy(
+        get(array, idx),
+        get(array, idx + 1),
+        (array->elements_used - idx) * array->element_size
+    );
+
+    array->elements_used--;
+}
+
+char* ExpandingArray::begin(ExpandingArray* array) {
+    if (array->elements_used == 0) {
+        return nullptr;
+    }
+
+    return array->data;
+}
+
+char* ExpandingArray::end(ExpandingArray* array) {
+    if (array->elements_used == 0) {
+        return nullptr;
+    }
+
+    return array->data + (array->elements_used - 1) * array->element_size;
+}
+
+size_t ExpandingArray::size(ExpandingArray* array) {
+    return array->elements_used;
+}
+
+size_t ExpandingArray::capacity(ExpandingArray* array) {
+    return array->max_elements;
+}
+
+size_t ExpandingArray::empty(ExpandingArray* array) {
+    return array->elements_used == 0;
+}
+
+void ExpandingArray::clear(ExpandingArray* array) {
+    array->elements_used = 0;
+    shrink(array);
+}
+
+bool ExpandingArray::equals(ExpandingArray* a, ExpandingArray* b) {
+    if (a->elements_used != b->elements_used || a->element_size != b->element_size) {
+        return false;
+    }
+
+    return Mem::compare(a->data, b->data, b->elements_used * a->element_size) == 0;
+}
+
 }

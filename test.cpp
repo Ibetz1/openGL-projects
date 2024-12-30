@@ -97,245 +97,53 @@ struct Node2D {
     }
 };
 
-struct FixedArray {
-    const size_t element_size;
-    const size_t elements;
-    const size_t size_bytes;
-    char data[];
+using namespace nstd;
 
-    static FixedArray* create(size_t elements, size_t element_size) {
-        size_t size = elements * element_size;
+void do_something(List<char> d) {
+    printf("%s\n", Data::raw(d));
+}
 
-        FixedArray* array = Mem::type_alloc<FixedArray>(size);
-        Mem::const_copy(&array->size_bytes, &size);
-        Mem::const_copy(&array->elements, &elements);
-        Mem::const_copy(&array->element_size, &element_size);
+void test2(Vector<char> d) {
+    printf("test2\n");
+}
 
-        Mem::set(array->data, 0, size);
+void test() {
+    
+    /*
+        basically smart pointers
+    */
 
-        return array;
-    }
+    FixedBlock<int>::Temp fixed_mem_auto = Mem::fixed<int>(100); // automatically freed
+    DynamicBlock<int>::Temp dynamic_mem_auto = Mem::dynamic<int>(100); // automatically freed
+    Vector<int>::Temp vector_auto = Data::vector<int>(); // automatically freed
+    List<int>::Temp list_auto = Data::list<int>(100); // automatically freed
+    
+    /*
+        manual allocation
+    */
 
-    static void destroy(FixedArray* array) {
-        Mem::dealloc(array);
-    }
+    FixedBlock<int> fixed_mem_manual = Mem::fixed<int>(100);
+    DynamicBlock<int> dynamic_mem_manual = Mem::dynamic<int>(100);
+    Vector<int> vector_manual = Data::vector<int>();
+    List<int> list_manual = Data::list<int>(100);
 
-    static char* begin(FixedArray* array) {
-        return array->data;
-    }
-
-    static char* end(FixedArray* array) {
-        return array->data + array->size_bytes;
-    }
-
-    static bool contains(FixedArray* array, const char* ptr) {
-        return ptr >= begin(array) && ptr < end(array);
-    }
-
-    static bool is_aligned(FixedArray* array, char* ptr) {
-        return contains(array, ptr) && (
-               (ptr - array->data) % array->element_size) == 0;
-    }
-
-    static char* next(FixedArray* array, char* ptr) {
-        if (!contains(array, ptr)) {
-            return nullptr;
-        }
-
-        return ptr + array->element_size;
-    }
-
-    static void next(FixedArray* array, char** ptr) {
-        if (!contains(array, *ptr)) {
-            *ptr = nullptr;
-            return;
-        }
-
-        *ptr = *ptr + array->element_size;
-    }
-
-    static char* at(FixedArray* array, size_t idx) {
-        if (idx > array->elements) {
-            return nullptr;
-        }
-
-        return array->data + idx * array->element_size;
-    }
-
-    static void iterate(FixedArray* array, void (*onitem)(char* ptr, size_t idx)) {
-        size_t i = 0;
-        for (
-            char* ref = begin(array);
-            contains(array, ref);
-            FixedArray::next(array, &ref), ++i
-        ) {
-            onitem(ref, i);
-        }
-    }
-};
-
-struct ExpandingArray {
-    const size_t chunk_elements;  // number of slots per allocation
-    const size_t element_size;    // bytes per slot
-    size_t max_elements;          // max number of slots with current allocation
-    size_t elements_used;         // total slots used
-    char* data;
-
-    static ExpandingArray* create(size_t element_size, size_t reserved = 32) {
-        ExpandingArray* array = Mem::type_alloc<ExpandingArray>();
-        array->data = Mem::alloc<char>(element_size * reserved);
-        Mem::set(array->data, 0, element_size * reserved);
-        Mem::const_copy(&array->chunk_elements, &reserved);
-        Mem::const_copy(&array->element_size, &element_size);
-        array->max_elements = reserved;
-        array->elements_used = 0;
-        return array;
-    }
-
-    static void destroy(ExpandingArray* array) {
-        Mem::dealloc(array->data);
-        Mem::dealloc(array);
-    }
-
-    static void expand(ExpandingArray* array) {
-        size_t new_size = array->max_elements * 2;
-        array->data = Mem::resize(array->data, new_size * array->element_size);
-        array->max_elements = new_size;
-    }
-
-    static void shrink(ExpandingArray* array) {
-        size_t chunk_boundry = (array->elements_used / array->chunk_elements) + 1;
-        size_t new_size = chunk_boundry * array->chunk_elements;
-
-        if (new_size < array->chunk_elements) {
-            new_size = array->chunk_elements;
-        }
-
-        if (new_size == array->max_elements) {
-            return;
-        }
-
-        array->data = Mem::resize(array->data, new_size * array->element_size);
-        array->max_elements = new_size;
-    }
-
-    static void push_back(ExpandingArray* array, char* val) {
-        if (array->elements_used - array->max_elements == 0) {
-            expand(array);
-        }
-
-        memcpy(array->data + array->elements_used * array->element_size, val, array->element_size);
-        array->elements_used++;
-    }
-
-    static void pop_back(ExpandingArray* array) {
-        array->elements_used--;
-    }
-
-    static char* back(ExpandingArray* array) {
-        if (array->elements_used == 0) {
-            return nullptr;
-        }
-
-        return array->data + (array->elements_used - 1) * array->element_size;
-    }
-
-    static char* get(ExpandingArray* array, size_t idx) {
-        return array->data + idx * array->element_size;
-    }
-
-    static void set(ExpandingArray* array, size_t idx, char* val) {
-        if (idx >= array->elements_used) {
-            THROW("index out of bounds");
-        }
-
-        Mem::copy(get(array, idx), val, array->element_size);
-    }
-
-    static char* at(ExpandingArray* array, size_t idx) {
-        if (idx >= array->elements_used) {
-            THROW("index out of bounds");
-        }
-
-        return get(array, idx);
-    }
-
-    static void insert(ExpandingArray* array, size_t idx, char* val) {
-        if (idx >= array->elements_used) {
-            THROW("index out of bounds");
-            return; // error
-        }
-
-        if (array->elements_used == array->max_elements) {
-            expand(array);
-        }
-
-        Mem::copy(
-            get(array, idx + 1),
-            get(array, idx),
-            (array->elements_used - idx) * array->element_size
-        );
-
-        Mem::copy(get(array, idx), val, array->element_size);
-        array->elements_used++;
-    }
-
-    static void erase(ExpandingArray* array, size_t idx) {
-        if (idx >= array->elements_used) {
-            THROW("index out of bounds");
-            return; // error
-        }
-
-        if (array->elements_used == array->max_elements) {
-            expand(array);
-        }
-
-        Mem::copy(
-            get(array, idx),
-            get(array, idx + 1),
-            (array->elements_used - idx) * array->element_size
-        );
-
-        array->elements_used--;
-    }
-
-    static char* begin(ExpandingArray* array) {
-        return array->data;
-    }
-
-    static char* end(ExpandingArray* array) {
-        return array->data + (array->elements_used - 1) * array->element_size;
-    }
-
-    static size_t size(ExpandingArray* array) {
-        return array->elements_used;
-    }
-
-    static size_t capacity(ExpandingArray* array) {
-        return array->max_elements;
-    }
-
-    static size_t empty(ExpandingArray* array) {
-        return array->elements_used == 0;
-    }
-
-    static void clear(ExpandingArray* array) {
-        array->elements_used = 0;
-        shrink(array);
-    }
-};
-
-struct Test {
-    int a;
-    int b;
-    int c;
-    size_t d;
-};
-
-#include <chrono>
-#include <vector>
+    Mem::dealloc(&fixed_mem_manual);
+    Mem::dealloc(&dynamic_mem_manual);
+    Mem::dealloc(&vector_manual);
+    Mem::dealloc(&list_manual);
+}
 
 int main() {
+    test();
+
+    // String my_str = Data::string("hello world");
+    // Data::join(my_str, "test");
+
+    // Array my_array = Data::list(my_str);
+
+    // printf("%s123\n", Data::raw(my_str));
+    // printf("%s123\n", Data::raw(my_array));
+
     // MyObject* obj = MyObject::create();
     // MyObject::destroy(obj);
 
