@@ -7,12 +7,12 @@ namespace nstd {
 */
 
 // creates a new block of memory
-FixedAllocator* FixedAllocator::create(size_t chunk_count, size_t chunk_size) {
-    size_t allocated_space = (chunk_count * chunk_size);
-    size_t free_list_space = (chunk_count * sizeof(char*));
+FixedAllocator* FixedAllocator::create(USZ chunk_count, USZ chunk_size) {
+    USZ allocated_space = (chunk_count * chunk_size);
+    USZ free_list_space = (chunk_count * sizeof(U8*));
 
     FixedAllocator* block = Mem::type_alloc<FixedAllocator>(allocated_space + free_list_space);
-    block->free_list = (char**) (block->allocated + allocated_space);
+    block->free_list = (U8**) (block->allocated + allocated_space);
     block->chunks_free = chunk_count;
     block->next = nullptr;
 
@@ -20,7 +20,7 @@ FixedAllocator* FixedAllocator::create(size_t chunk_count, size_t chunk_size) {
     Mem::const_copy(&block->chunk_size, &chunk_size);
 
     for (int i = 0; i < chunk_count; i++) {
-        char* addr = block->allocated + (i * chunk_size);
+        U8* addr = block->allocated + (i * chunk_size);
         block->free_list[i] = addr;
     }
 
@@ -33,8 +33,8 @@ void FixedAllocator::destroy(FixedAllocator* block) {
         return;
     }
 
-    size_t allocated_space = (block->chunk_count * block->chunk_size);
-    size_t free_list_space = (block->chunk_count * sizeof(char*));
+    USZ allocated_space = (block->chunk_count * block->chunk_size);
+    USZ free_list_space = (block->chunk_count * sizeof(U8*));
 
     destroy(block->next);
     Mem::set(block->allocated, 0, allocated_space + free_list_space);
@@ -42,14 +42,14 @@ void FixedAllocator::destroy(FixedAllocator* block) {
 }
 
 // returns whether an address is aligned with the memory block
-bool FixedAllocator::check_addr_alignment(FixedAllocator* block, char* addr) {
+bool FixedAllocator::check_addr_alignment(FixedAllocator* block, U8* addr) {
     if (AUTO_ASSERT_MEMORY_ALIGNED) {
         return true;
     }
 
-    char* allocated = block->allocated;
-    size_t chunk_size = block->chunk_size;
-    size_t chunk_count = block->chunk_count;
+    U8* allocated = block->allocated;
+    USZ chunk_size = block->chunk_size;
+    USZ chunk_count = block->chunk_count;
 
     bool block_exists = block != nullptr;
     bool addr_above_block = addr >= allocated;
@@ -65,15 +65,15 @@ bool FixedAllocator::has_space(FixedAllocator* block) {
 }
 
 // inserts a slice of data if it can
-char* FixedAllocator::insert(FixedAllocator* block, char* data) {
-    size_t* chunks_free = &block->chunks_free;
+U8* FixedAllocator::insert(FixedAllocator* block, U8* data) {
+    USZ* chunks_free = &block->chunks_free;
 
     if (!(block && *chunks_free)) {
         LOGI("memory block is full");
         return nullptr;
     }
 
-    char* ref = block->free_list[*chunks_free - 1];
+    U8* ref = block->free_list[*chunks_free - 1];
 
     Mem::copy(ref, data, block->chunk_size);
     --*chunks_free;
@@ -82,8 +82,8 @@ char* FixedAllocator::insert(FixedAllocator* block, char* data) {
 }
 
 // removes a slice of data by reference
-void FixedAllocator::remove(FixedAllocator* block, char** data, bool assert_aligned) {
-    size_t* chunks_free = &block->chunks_free;
+void FixedAllocator::remove(FixedAllocator* block, U8** data, bool assert_aligned) {
+    USZ* chunks_free = &block->chunks_free;
 
     if (!assert_aligned && !check_addr_alignment(block, *data)) {
         THROW("attempt to remove mal aligned data");
@@ -106,7 +106,7 @@ void FixedAllocator::remove(FixedAllocator* block, char** data, bool assert_alig
 */
 
 // creates a new expanding allocator
-ExpandingAllocator* ExpandingAllocator::create(size_t chunk_count, size_t chunk_size) {
+ExpandingAllocator* ExpandingAllocator::create(USZ chunk_count, USZ chunk_size) {
     ExpandingAllocator* pool = Mem::type_alloc<ExpandingAllocator>();
     pool->root = FixedAllocator::create(chunk_count, chunk_size);
     pool->last = pool->root;
@@ -131,7 +131,7 @@ void ExpandingAllocator::expand(ExpandingAllocator* pool) {
 }
 
 // uses expanding allocator to save data
-char* ExpandingAllocator::insert(ExpandingAllocator* pool, char* data) {
+U8* ExpandingAllocator::insert(ExpandingAllocator* pool, U8* data) {
     /*
         insert into discovered block
     */
@@ -141,12 +141,12 @@ char* ExpandingAllocator::insert(ExpandingAllocator* pool, char* data) {
         return nullptr;
     }
 
-    char* ref = FixedAllocator::insert(block, data);
+    U8* ref = FixedAllocator::insert(block, data);
     return ref;
 }
 
 // removes existing reference from expanding allocator
-void ExpandingAllocator::remove(ExpandingAllocator* pool, char** data) {
+void ExpandingAllocator::remove(ExpandingAllocator* pool, U8** data) {
     FixedAllocator* cur_block = find_aligned_block(pool, *data);
 
     if (!cur_block) {
@@ -185,7 +185,7 @@ FixedAllocator* ExpandingAllocator::find_free_block(ExpandingAllocator* pool) {
 }
 
 // finds the block containing a reference
-FixedAllocator* ExpandingAllocator::find_aligned_block(ExpandingAllocator* pool, char* data) {
+FixedAllocator* ExpandingAllocator::find_aligned_block(ExpandingAllocator* pool, U8* data) {
     FixedAllocator* cur_block = (pool->last_removed) ? pool->last_removed : pool->root;
 
     if (!FixedAllocator::check_addr_alignment(cur_block, data)) {
@@ -207,8 +207,8 @@ FixedAllocator* ExpandingAllocator::find_aligned_block(ExpandingAllocator* pool,
     fixed array
 */
 
-FixedArray* FixedArray::create(size_t elements, size_t element_size) {
-    size_t size = elements * element_size;
+FixedArray* FixedArray::create(USZ elements, USZ element_size) {
+    USZ size = elements * element_size;
 
     FixedArray* array = Mem::type_alloc<FixedArray>(size);
     Mem::const_copy(&array->size_bytes, &size);
@@ -220,8 +220,8 @@ FixedArray* FixedArray::create(size_t elements, size_t element_size) {
     return array;
 }
 
-FixedArray* FixedArray::create(const char* buffer, size_t elements, size_t element_size) {
-    size_t size = elements * element_size;
+FixedArray* FixedArray::create(const U8* buffer, USZ elements, USZ element_size) {
+    USZ size = elements * element_size;
 
     FixedArray* array = Mem::type_alloc<FixedArray>(size);
     Mem::const_copy(&array->size_bytes, &size);
@@ -239,15 +239,15 @@ void FixedArray::destroy(FixedArray* array) {
     }
 }
 
-char* FixedArray::begin(FixedArray* array) {
+U8* FixedArray::begin(FixedArray* array) {
     return array->data;
 }
 
-char* FixedArray::end(FixedArray* array) {
+U8* FixedArray::end(FixedArray* array) {
     return array->data + array->size_bytes;
 }
 
-char* FixedArray::at(FixedArray* array, size_t idx) {
+U8* FixedArray::at(FixedArray* array, USZ idx) {
     if (idx >= array->elements) {
         THROW("index out of bounds");
         return nullptr;
@@ -256,7 +256,7 @@ char* FixedArray::at(FixedArray* array, size_t idx) {
     return array->data + idx * array->element_size;
 }
 
-void FixedArray::insert(FixedArray* array, size_t idx, char* data) {
+void FixedArray::insert(FixedArray* array, USZ idx, U8* data) {
     if (idx >= array->elements) {
         THROW("index out of bounds");
         return;
@@ -282,7 +282,7 @@ bool FixedArray::equals(FixedArray* a, FixedArray* b) {
     return Mem::compare(a->data, b->data, a->size_bytes) == 0;
 }
 
-size_t FixedArray::size(FixedArray* array) {
+USZ FixedArray::size(FixedArray* array) {
     return array->elements;
 }
 
@@ -294,9 +294,9 @@ void FixedArray::clear(FixedArray* array) {
     expanding array
 */
 
-ExpandingArray* ExpandingArray::create(size_t element_size, size_t reserved) {
+ExpandingArray* ExpandingArray::create(USZ element_size, USZ reserved) {
     ExpandingArray* array = Mem::type_alloc<ExpandingArray>();
-    array->data = Mem::alloc<char>(element_size * reserved);
+    array->data = Mem::alloc<U8>(element_size * reserved);
     Mem::set(array->data, 0, element_size * reserved);
     Mem::const_copy(&array->element_size, &element_size);
     Mem::const_copy(&array->reserved, &reserved);
@@ -305,7 +305,7 @@ ExpandingArray* ExpandingArray::create(size_t element_size, size_t reserved) {
     return array;
 }
 
-ExpandingArray* ExpandingArray::create(const char* buffer, size_t element_size, size_t num_elements) {
+ExpandingArray* ExpandingArray::create(const U8* buffer, USZ element_size, USZ num_elements) {
     ExpandingArray* array = create(element_size, num_elements);
     Mem::copy(array->data, buffer, element_size * num_elements);
     array->elements_used = num_elements;
@@ -320,19 +320,19 @@ void ExpandingArray::destroy(ExpandingArray* array) {
 }
 
 void ExpandingArray::expand(ExpandingArray* array) {
-    size_t new_size = array->max_elements * 2;
+    USZ new_size = array->max_elements * 2;
     array->data = Mem::resize(array->data, new_size * array->element_size);
     array->max_elements = new_size;
 }
 
-void ExpandingArray::expand(ExpandingArray* array, size_t size) {
-    size_t new_size = array->max_elements + size;
+void ExpandingArray::expand(ExpandingArray* array, USZ size) {
+    USZ new_size = array->max_elements + size;
     array->data = Mem::resize(array->data, new_size * array->element_size);
     array->max_elements = new_size;
 }
 
-void ExpandingArray::join_raw(ExpandingArray* array, const char* data, size_t size) {
-    size_t new_size = array->elements_used + size;
+void ExpandingArray::join_raw(ExpandingArray* array, const U8* data, USZ size) {
+    USZ new_size = array->elements_used + size;
 
     if (new_size > array->max_elements) {
         expand(array, new_size - array->max_elements);
@@ -342,7 +342,7 @@ void ExpandingArray::join_raw(ExpandingArray* array, const char* data, size_t si
 }
 
 void ExpandingArray::shrink(ExpandingArray* array) {
-    size_t new_size = (array->elements_used) + 1;
+    USZ new_size = (array->elements_used) + 1;
 
     if (new_size < array->reserved) {
         new_size = array->reserved;
@@ -356,7 +356,7 @@ void ExpandingArray::shrink(ExpandingArray* array) {
     array->max_elements = new_size;
 }
 
-void ExpandingArray::push_back(ExpandingArray* array, char* val) {
+void ExpandingArray::push_back(ExpandingArray* array, U8* val) {
     if (array->elements_used - array->max_elements == 0) {
         expand(array);
     }
@@ -369,11 +369,11 @@ void ExpandingArray::pop_back(ExpandingArray* array) {
     array->elements_used--;
 }
 
-char* ExpandingArray::get(ExpandingArray* array, size_t idx) {
+U8* ExpandingArray::get(ExpandingArray* array, USZ idx) {
     return array->data + idx * array->element_size;
 }
 
-void ExpandingArray::set(ExpandingArray* array, size_t idx, char* val) {
+void ExpandingArray::set(ExpandingArray* array, USZ idx, U8* val) {
     if (idx >= array->elements_used) {
         THROW("index out of bounds");
     }
@@ -381,7 +381,7 @@ void ExpandingArray::set(ExpandingArray* array, size_t idx, char* val) {
     Mem::copy(get(array, idx), val, array->element_size);
 }
 
-char* ExpandingArray::at(ExpandingArray* array, size_t idx) {
+U8* ExpandingArray::at(ExpandingArray* array, USZ idx) {
     if (idx >= array->elements_used) {
         THROW("index out of bounds");
     }
@@ -389,7 +389,7 @@ char* ExpandingArray::at(ExpandingArray* array, size_t idx) {
     return get(array, idx);
 }
 
-void ExpandingArray::insert(ExpandingArray* array, size_t idx, char* val) {
+void ExpandingArray::insert(ExpandingArray* array, USZ idx, U8* val) {
     if (idx >= array->elements_used) {
         THROW("index out of bounds");
         return; // error
@@ -409,7 +409,7 @@ void ExpandingArray::insert(ExpandingArray* array, size_t idx, char* val) {
     array->elements_used++;
 }
 
-void ExpandingArray::erase(ExpandingArray* array, size_t idx) {
+void ExpandingArray::erase(ExpandingArray* array, USZ idx) {
     if (idx >= array->elements_used) {
         THROW("index out of bounds");
         return; // error
@@ -428,7 +428,7 @@ void ExpandingArray::erase(ExpandingArray* array, size_t idx) {
     array->elements_used--;
 }
 
-char* ExpandingArray::begin(ExpandingArray* array) {
+U8* ExpandingArray::begin(ExpandingArray* array) {
     if (array->elements_used == 0) {
         return nullptr;
     }
@@ -436,7 +436,7 @@ char* ExpandingArray::begin(ExpandingArray* array) {
     return array->data;
 }
 
-char* ExpandingArray::end(ExpandingArray* array) {
+U8* ExpandingArray::end(ExpandingArray* array) {
     if (array->elements_used == 0) {
         return nullptr;
     }
@@ -444,15 +444,15 @@ char* ExpandingArray::end(ExpandingArray* array) {
     return array->data + (array->elements_used - 1) * array->element_size;
 }
 
-size_t ExpandingArray::size(ExpandingArray* array) {
+USZ ExpandingArray::size(ExpandingArray* array) {
     return array->elements_used;
 }
 
-size_t ExpandingArray::capacity(ExpandingArray* array) {
+USZ ExpandingArray::capacity(ExpandingArray* array) {
     return array->max_elements;
 }
 
-size_t ExpandingArray::empty(ExpandingArray* array) {
+USZ ExpandingArray::empty(ExpandingArray* array) {
     return array->elements_used == 0;
 }
 
