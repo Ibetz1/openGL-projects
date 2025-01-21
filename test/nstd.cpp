@@ -2,16 +2,41 @@
 
 namespace nstd {
 
+#ifdef STD_HEAP_TRACK
+
+    std::map<U8*, USZ> Mem::heap_used = { };
+    USZ Mem::alloc_calls = 0;
+    USZ Mem::realloc_calls = 0;
+    USZ Mem::free_calls = 0;
+
+    USZ Mem::heap_total() {
+        USZ sum = 0;
+
+        for (auto& [key, val] : heap_used) {
+            sum += val;
+        }
+
+        return sum;
+    }
+
+#else
+
+    USZ Mem::heap_total() {
+        return 0;
+    }
+
+#endif
+
 /*
     fixed allocator impl
 */
 
 // creates a new block of memory
-FixedAllocator* FixedAllocator::create(USZ chunk_count, USZ chunk_size) {
+FixedHeapContainer* FixedHeapContainer::create(USZ chunk_count, USZ chunk_size) {
     USZ allocated_space = (chunk_count * chunk_size);
     USZ free_list_space = (chunk_count * sizeof(U8*));
 
-    FixedAllocator* block = Mem::type_alloc<FixedAllocator>(allocated_space + free_list_space);
+    FixedHeapContainer* block = Mem::type_alloc<FixedHeapContainer>(allocated_space + free_list_space);
     block->free_list = (U8**) (block->allocated + allocated_space);
     block->chunks_free = chunk_count;
     block->next = nullptr;
@@ -28,21 +53,14 @@ FixedAllocator* FixedAllocator::create(USZ chunk_count, USZ chunk_size) {
 }
 
 // destroys a mem block and all linked blocks
-void FixedAllocator::destroy(FixedAllocator* block) {
-    if (block == nullptr) {
-        return;
+void FixedHeapContainer::destroy(FixedHeapContainer* block) {
+    if (block) {
+        Mem::dealloc(block);
     }
-
-    USZ allocated_space = (block->chunk_count * block->chunk_size);
-    USZ free_list_space = (block->chunk_count * sizeof(U8*));
-
-    destroy(block->next);
-    Mem::set(block->allocated, 0, allocated_space + free_list_space);
-    Mem::dealloc(block);
 }
 
 // returns whether an address is aligned with the memory block
-bool FixedAllocator::check_addr_alignment(FixedAllocator* block, U8* addr) {
+bool FixedHeapContainer::check_addr_alignment(FixedHeapContainer* block, U8* addr) {
     if (AUTO_ASSERT_MEMORY_ALIGNED) {
         return true;
     }
@@ -60,12 +78,12 @@ bool FixedAllocator::check_addr_alignment(FixedAllocator* block, U8* addr) {
 }
 
 // check if this allocator has space
-bool FixedAllocator::has_space(FixedAllocator* block) {
+bool FixedHeapContainer::has_space(FixedHeapContainer* block) {
     return block && block->chunks_free > 0;
 }
 
 // inserts a slice of data if it can
-U8* FixedAllocator::insert(FixedAllocator* block, U8* data) {
+U8* FixedHeapContainer::insert(FixedHeapContainer* block, U8* data) {
     USZ* chunks_free = &block->chunks_free;
 
     if (!(block && *chunks_free)) {
@@ -74,15 +92,16 @@ U8* FixedAllocator::insert(FixedAllocator* block, U8* data) {
     }
 
     U8* ref = block->free_list[*chunks_free - 1];
-
-    Mem::copy(ref, data, block->chunk_size);
+    if (data) {
+        Mem::copy(ref, data, block->chunk_size);
+    }
     --*chunks_free;
 
     return ref;
 }
 
 // removes a slice of data by reference
-void FixedAllocator::remove(FixedAllocator* block, U8** data, bool assert_aligned) {
+void FixedHeapContainer::remove(FixedHeapContainer* block, U8** data, bool assert_aligned) {
     USZ* chunks_free = &block->chunks_free;
 
     if (!assert_aligned && !check_addr_alignment(block, *data)) {
@@ -106,9 +125,9 @@ void FixedAllocator::remove(FixedAllocator* block, U8** data, bool assert_aligne
 */
 
 // creates a new expanding allocator
-ExpandingAllocator* ExpandingAllocator::create(USZ chunk_count, USZ chunk_size) {
-    ExpandingAllocator* pool = Mem::type_alloc<ExpandingAllocator>();
-    pool->root = FixedAllocator::create(chunk_count, chunk_size);
+DynamicHeapContainer* DynamicHeapContainer::create(USZ chunk_count, USZ chunk_size) {
+    DynamicHeapContainer* pool = Mem::type_alloc<DynamicHeapContainer>();
+    pool->root = FixedHeapContainer::create(chunk_count, chunk_size);
     pool->last = pool->root;
     pool->last_empty = pool->root;
     pool->last_removed = pool->root;
@@ -116,57 +135,64 @@ ExpandingAllocator* ExpandingAllocator::create(USZ chunk_count, USZ chunk_size) 
 }
 
 // destroys frees existing expanding allocator
-void ExpandingAllocator::destroy(ExpandingAllocator* pool) {
+void DynamicHeapContainer::destroy(DynamicHeapContainer* pool) {
     if (pool) {
-        FixedAllocator::destroy(pool->root);
+        FixedHeapContainer* fixed = pool->root;
+
+        while (fixed) {
+            FixedHeapContainer::destroy(fixed);
+            fixed = fixed->next;
+        }
+
         Mem::dealloc(pool);
     }
 }
 
 // create a new fixed block on the heap
-void ExpandingAllocator::expand(ExpandingAllocator* pool) {
-        FixedAllocator* extended = FixedAllocator::create(pool->last->chunk_count, pool->last->chunk_size);
-        pool->last->next = extended;
-        pool->last = extended;
+void DynamicHeapContainer::expand(DynamicHeapContainer* pool) {
+    FixedHeapContainer* extended = FixedHeapContainer::create(pool->last->chunk_count, pool->last->chunk_size);
+    pool->last->next = extended;
+    pool->last = extended;
 }
 
 // uses expanding allocator to save data
-U8* ExpandingAllocator::insert(ExpandingAllocator* pool, U8* data) {
+U8* DynamicHeapContainer::insert(DynamicHeapContainer* pool, U8* data) {
     /*
         insert into discovered block
     */
-    FixedAllocator* block = find_free_block(pool);
+    FixedHeapContainer* block = find_free_block(pool);
     
     if (!block) {
         return nullptr;
     }
 
-    U8* ref = FixedAllocator::insert(block, data);
+    U8* ref = FixedHeapContainer::insert(block, data);
     return ref;
 }
 
 // removes existing reference from expanding allocator
-void ExpandingAllocator::remove(ExpandingAllocator* pool, U8** data) {
-    FixedAllocator* cur_block = find_aligned_block(pool, *data);
+void DynamicHeapContainer::remove(DynamicHeapContainer* pool, U8** data) {
+    FixedHeapContainer* cur_block = find_aligned_block(pool, *data);
 
     if (!cur_block) {
         THROW("data mal aligned");
         return;
     }
 
-    FixedAllocator::remove(cur_block, data, true);
+    FixedHeapContainer::remove(cur_block, data, true);
     pool->last_removed = cur_block;
 }
 
 // returns a free block in the allocator
-FixedAllocator* ExpandingAllocator::find_free_block(ExpandingAllocator* pool) {
-    FixedAllocator* cur_block = (pool->last_empty) ? pool->last_empty : pool->root;
-    if (!FixedAllocator::has_space(cur_block)) {
+FixedHeapContainer* DynamicHeapContainer::find_free_block(DynamicHeapContainer* pool) {
+    FixedHeapContainer* cur_block = (pool->last_empty) ? pool->last_empty : pool->root;
+
+    if (!FixedHeapContainer::has_space(cur_block)) {
         // if last empty does not have space then find one that does
         cur_block = pool->root;
 
         while (cur_block) {
-            if (FixedAllocator::has_space(cur_block)) {
+            if (FixedHeapContainer::has_space(cur_block)) {
                 break;
             }
 
@@ -175,6 +201,7 @@ FixedAllocator* ExpandingAllocator::find_free_block(ExpandingAllocator* pool) {
 
         if (!cur_block) {
             expand(pool);
+            return pool->last;
         }
 
         pool->last_empty = cur_block;
@@ -185,14 +212,14 @@ FixedAllocator* ExpandingAllocator::find_free_block(ExpandingAllocator* pool) {
 }
 
 // finds the block containing a reference
-FixedAllocator* ExpandingAllocator::find_aligned_block(ExpandingAllocator* pool, U8* data) {
-    FixedAllocator* cur_block = (pool->last_removed) ? pool->last_removed : pool->root;
+FixedHeapContainer* DynamicHeapContainer::find_aligned_block(DynamicHeapContainer* pool, U8* data) {
+    FixedHeapContainer* cur_block = (pool->last_removed) ? pool->last_removed : pool->root;
 
-    if (!FixedAllocator::check_addr_alignment(cur_block, data)) {
+    if (!FixedHeapContainer::check_addr_alignment(cur_block, data)) {
         cur_block = pool->root;
 
         while (cur_block) {
-            if (cur_block != pool->last_removed && FixedAllocator::check_addr_alignment(cur_block, data)) {
+            if (cur_block != pool->last_removed && FixedHeapContainer::check_addr_alignment(cur_block, data)) {
                 break;
             }
 
@@ -201,6 +228,25 @@ FixedAllocator* ExpandingAllocator::find_aligned_block(ExpandingAllocator* pool,
     }
 
     return cur_block;
+}
+
+/*
+    hash
+*/
+U32 Hash::generate(const U8* bytes, USZ len, const Hash::Group group) {
+    U32 hash = group.seed;
+
+    // traverse single byte chunks
+    USZ i = 0;
+    while (i < len) {
+        U32 v = (U32) *(bytes + i);
+
+        group.func(&hash, v);
+
+        ++i;
+    }
+
+    return hash;
 }
 
 /*
@@ -467,6 +513,127 @@ bool ExpandingArray::equals(ExpandingArray* a, ExpandingArray* b) {
     }
 
     return Mem::compare(a->data, b->data, b->elements_used * a->element_size) == 0;
+}
+
+/*
+    pair
+*/
+
+USZ Pair::compare_lr(const Pair* a, const Pair* b) {
+    USZ alint = (USZ) a->lptr;
+    USZ arint = (USZ) a->rptr;
+    USZ blint = (USZ) b->lptr;
+    USZ brint = (USZ) b->rptr;
+
+    return max(alint, blint) - min(alint, blint) + max(arint, brint) - min(arint, brint);
+}
+
+USZ Pair::compare_l(const Pair* a, const Pair* b) {
+    USZ alint = (USZ) a->lptr;
+    USZ blint = (USZ) b->lptr;
+
+    return max(alint, blint) - min(alint, blint);
+}
+
+USZ Pair::compare_r(const Pair* a, const Pair* b) {
+    USZ arint = (USZ) a->rptr;
+    USZ brint = (USZ) b->rptr;
+
+    return max(arint, brint) - min(arint, brint);
+}
+
+/*
+    ref table
+*/
+
+ReferenceTable* ReferenceTable::create(USZ width, Hash::Group hash_type = Hash::djb2) {
+    ReferenceTable* table = Mem::type_alloc<ReferenceTable>();
+    table->allocator = Mem::dynamic_container<Item>(width);
+    table->references = Data::list<Item*>(width);
+    table->hash_type = hash_type;
+
+    return table;
+}
+
+void ReferenceTable::destroy(ReferenceTable* table) {
+    Mem::dealloc(&table->allocator);
+    Mem::dealloc(&table->references);
+    Mem::dealloc(table);
+}
+
+ReferenceTable::Item* ReferenceTable::get_item(ReferenceTable* table, const U8* ptr) {
+    USZ ptr_val = (USZ) ptr;
+    USZ hash = Hash::generate((U8*) &ptr_val, sizeof(USZ), table->hash_type) % Data::size(table->references);
+    return *Data::at(table->references, hash);
+}
+
+void ReferenceTable::insert(ReferenceTable* table, Pair data) {
+
+    // get current item at hash
+    USZ ptr_val = (USZ) data.lptr;
+    USZ hash = Hash::generate((U8*) &ptr_val, sizeof(USZ), table->hash_type) % Data::size(table->references);
+    Item* current = *Data::at(table->references, hash);
+
+    // create a new item
+    if (current == nullptr) {
+        Item* new_item = Mem::alloc(&table->allocator);
+        new_item->region = data;
+        new_item->next = nullptr;
+        Data::insert(table->references, hash, new_item);
+        return;
+    }
+
+    while (current) {
+        // replace existing value
+        if (Pair::compare_l(&current->region, &data) == 0) {
+            current->region.rptr = data.rptr;
+            return;
+        }
+
+        // if we are on the last item in linked list, make a new one
+        if (current->next == nullptr) {
+            Item* new_item = Mem::alloc(&table->allocator);
+            new_item->region = data;
+            new_item->next = nullptr;
+            current->next = new_item;
+            return;
+        }
+
+        current = current->next;
+    }
+}
+
+U8* ReferenceTable::find(ReferenceTable* table, const U8* lptr) {
+    Item* current = get_item(table, lptr);
+
+    while (current) {
+        Pair* data = &current->region;
+
+        if (data->lptr == lptr) {
+            return data->rptr;
+        }
+
+        current = current->next;
+    }
+
+    return { 0 };
+}
+
+void ReferenceTable::iterate(ReferenceTable* table, void (*it)(U8*, U8*)) {
+    USZ bin = 0;
+
+    for (USZ bin = 0; bin < Data::size(table->references); ++bin) {
+        Item* item = *Data::at(table->references, bin);
+
+        if (!item) {
+            continue;
+        }
+
+        while (item->next) {
+            it(item->region.lptr, item->region.rptr);
+            item = item->next;
+        }
+    }
 }
 
 }
