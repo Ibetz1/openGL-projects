@@ -21,19 +21,22 @@ struct VertexArray {
     static const Attribute vertex_texUV_attribute;
 
     // create a vertex array
-    static VertexArray create();
+    VertexArray();
 
     // destroy a vertex array
-    static void destroy(VertexArray* array);
+    ~VertexArray();
+
+    // secondary intialization
+    void init();
 
     // bind as current vertex array
-    static void bind(const VertexArray* array);
+    void bind() const;
 
     // unbind as current vertex array
-    static void unbind();
+    void unbind() const;
 
     // add attribute to vertex array
-    static void add_attribute(const VertexArray* array, const Attribute attribute);
+    void add_attribute(const Attribute attribute) const;
 };
 
 #endif

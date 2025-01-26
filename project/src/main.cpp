@@ -99,236 +99,6 @@ std::vector<GLuint> basePlateIndices = {
     16, 17, 19, 17, 18, 19,
 };
 
-struct Light {
-    glm::vec4 color;
-    float intensity;
-    float brightness;
-
-    static Light create(glm::vec4 color) {
-        Light light = { };
-
-        light.color = color;
-        light.intensity = 1.0f;
-        light.brightness = 1.0f;
-
-        return light;
-    }
-
-    static void destroy(Light* light) {
-        if (!light) return;
-
-        *light = { };
-    }
-
-    static void set_color(Light* light, glm::vec4 color) {
-        light->color = color;
-    }
-
-    static void set_intensity(Light* light, float intensity) {
-        light->intensity = intensity;
-    }
-
-    static void set_brightness(Light* light, float brightness) {
-        light->brightness = brightness;
-    }
-
-    static void render(const Light* light, const ShaderProgram* shader, const WorldObject* binding, int idx) {
-        std::string shaderReference = "lights[" + std::to_string(idx) + "]";
-
-        ShaderProgram::set_uniform_4fv(shader, (shaderReference + ".Color").c_str(), glm::value_ptr(light->color));
-        ShaderProgram::set_uniform_3fv(shader, (shaderReference + ".Position").c_str(), glm::value_ptr(binding->position));
-        ShaderProgram::set_uniform_1f(shader, (shaderReference + ".Intensity").c_str(), light->intensity);
-        ShaderProgram::set_uniform_1f(shader, (shaderReference + ".Brightness").c_str(), light->brightness);
-    }
-};
-
-struct LightContainer {
-    static constexpr int maxLights = 10;
-    std::unordered_map<const WorldObject*, Light*> lights;
-
-    static LightContainer create() {
-        LightContainer container = { };
-
-        return container;
-    }
-
-    static void destroy(LightContainer* container) {
-        container->lights.clear();
-        *container = { };
-    }
-
-    // adds a light with an object binding
-    static void add_light(LightContainer* container, const WorldObject* binding, Light* light) {
-        if (container->lights.size() >= maxLights) {
-            LOGE("exceeded max lights");
-            return;
-        }
-
-        container->lights.insert({binding, light});
-    }
-
-    // returns the light reference from its object binding
-    static Light* get_light(LightContainer* container, const WorldObject* binding) {
-        if (container->lights.count(binding)) {
-            return container->lights.at(binding);
-        }
-
-        return nullptr;
-    }
-
-    // remove a light based on a pointer reference to the light
-    static void remove_light(LightContainer* container, const Light* light) {
-        for (auto it = container->lights.begin(); it != container->lights.end(); ) {
-            if (it->second == light) {
-                container->lights.erase(it);
-                LOGI("removed light from light container");
-                return;
-            } else {
-                ++it;
-            }
-        }
-
-        LOGE("failed to remove light: not found");
-    }
-
-    // remove light based on its object binding
-    static void remove_light(LightContainer* container, const WorldObject* binding) {
-        if (container->lights.count(binding)) {
-            container->lights.erase(binding);
-            LOGI("removed light from light container");
-        }
-    }
-
-    // rebind light to world object
-    static void rebind_light(LightContainer* container, Light* light, const WorldObject* binding) {
-        remove_light(container, light);
-        add_light(container, binding, light);
-    }
-
-    static void render(LightContainer* container, ShaderProgram* shader) {
-        int idx = 0;
-
-        for (const auto & [binding, light] : container->lights) {
-            Light::render(light, shader, binding, idx);
-            ++idx;
-        }
-
-        ShaderProgram::set_uniform_1i(shader, "numLights", MIN(int, container->lights.size(), maxLights));
-    }
-};
-
-struct MeshContainer {
-    std::unordered_map<const WorldObject*, Mesh*> meshes;
-
-    static MeshContainer create() {
-        MeshContainer container = { };
-
-        return container;
-    }
-
-    static void destroy(MeshContainer* container) {
-        container->meshes.clear();
-        *container = { };
-    }
-
-    static void add_mesh(MeshContainer* container, const WorldObject* binding, Mesh* mesh) {
-        container->meshes.insert({binding, mesh});
-    }
-
-    // returns the light reference from its object binding
-    static Mesh* get_mesh(MeshContainer* container, const WorldObject* binding) {
-        if (container->meshes.count(binding)) {
-            return container->meshes.at(binding);
-        }
-
-        return nullptr;
-    }
-
-    // remove a light based on a pointer reference to the light
-    static void remove_mesh(MeshContainer* container, const Mesh* mesh) {
-        for (auto it = container->meshes.begin(); it != container->meshes.end(); ) {
-            if (it->second == mesh) {
-                container->meshes.erase(it);
-                LOGI("removed light from light container");
-                return;
-            } else {
-                ++it;
-            }
-        }
-
-        LOGE("failed to remove light: not found");
-    }
-
-    // remove light based on its object binding
-    static void remove_mesh(MeshContainer* container, const WorldObject* binding) {
-        container->meshes.erase(binding);
-        LOGI("removed light from light container");
-    }
-
-    // rebind light to world object
-    static void rebindLight(MeshContainer* container, Mesh* mesh, const WorldObject* binding) {
-        remove_mesh(container, mesh);
-        add_mesh(container, binding, mesh);
-    }
-
-    // renders all meshes in the container
-    static void render(MeshContainer* container, ShaderProgram* shader) {
-        int idx = 0;
-
-        for (const auto & [binding, mesh] : container->meshes) {
-            Mesh::draw(mesh, binding, shader);
-            ++idx;
-        }
-    }
-};
-
-struct Scene {
-    MeshContainer meshes;
-    LightContainer lights;
-
-    ShaderProgram* primaryShader;
-    Camera* camera;
-
-    static Scene create(
-        ShaderProgram* primaryShader,
-        Camera* camera
-    ) {
-        Scene scene = {};
-
-        scene.meshes = MeshContainer::create();
-        scene.lights = LightContainer::create();
-        scene.primaryShader = primaryShader;
-        scene.camera = camera;
-
-        return scene;
-    }
-
-    static void destroy(Scene* scene) {
-        MeshContainer::destroy(&scene->meshes);
-        LightContainer::destroy(&scene->lights);
-
-        *scene = {};
-    }
-
-    static void add_object(Scene* scene, WorldObject* binding, Light* light) {
-
-    }
-
-    static void add_object(Scene* scene, WorldObject* binding, Mesh* mesh) {
-
-    }
-
-    static void render(Scene* scene) {
-        ShaderProgram::activate(scene->primaryShader);
-        LightContainer::render(&scene->lights, scene->primaryShader); // draw lights
-
-        Camera::apply_viewport(scene->camera, scene->primaryShader, "view");
-        Camera::apply_position(scene->camera, scene->primaryShader, "cameraPosition");
-
-        MeshContainer::render(&scene->meshes, scene->primaryShader); // draw meshes
-    }
-};
-
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
 }
@@ -336,9 +106,7 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
 // binds to camera
 void mouse_callback_wrapper(GLFWwindow* window, double xpos, double ypos) {
     Camera* camera = (Camera*) (glfwGetWindowUserPointer(window));
-    if (camera) {
-        Camera::apply_mouse(camera, xpos, ypos);
-    }
+    camera->apply_mouse(xpos, ypos);
 }
 
 // Variable to store the previous key state
@@ -402,45 +170,32 @@ int main(void)
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetCursorPosCallback(window, mouse_callback_wrapper);
 
-    WorldObject light_object1 = WorldObject::create(glm::vec3(0, 3, 0));
-    WorldObject light_object2 = WorldObject::create(glm::vec3(3, 3, 0));
-    WorldObject mesh_object = WorldObject::create(glm::vec3(0, 1, 0));
-    WorldObject mesh_object1 = WorldObject::create(glm::vec3(3, 1, 0));
-    WorldObject base_plate_object = WorldObject::create(glm::vec3(3, -1, 0), 0, 0, glm::vec3(100, 1, 100));
-    WorldObject camera_object = WorldObject::create();
+    SceneObject light_object1(glm::vec3(0, 3, 0));
+    SceneObject light_object2(glm::vec3(3, 3, 0));
+    SceneObject mesh_object(glm::vec3(0, 1, 0));
+    SceneObject mesh_object1(glm::vec3(3, 1, 0));
+    SceneObject base_plate_object(glm::vec3(3, -1, 0), 0, 0, glm::vec3(100, 1, 100));
 
-    // move to heap
+    SceneObject camera_object;
+    Camera camera(window, &camera_object);
+    camera.bind();
 
-    Light light1 = Light::create(glm::vec4(1.0, 0.0, 0.0, 1.0));
-    Light light2 = Light::create(glm::vec4(0.0, 0.0, 1.0, 1.0));
+    Light light1(glm::vec4(1.0, 0.0, 0.0, 1.0));
+    Light light2(glm::vec4(0.0, 0.0, 1.0, 1.0));
 
-    LightContainer lights = LightContainer::create();
-    LightContainer::add_light(&lights, &light_object1, &light1);
-    LightContainer::add_light(&lights, &light_object2, &light2);
+    // load a mesh
+    Mesh cubeMesh(cubeVertices, cubeIndicies);
+    Mesh lightMesh(lightVertices, cubeIndicies);
+    Mesh basePlateMesh(cubeVertices, basePlateIndices);
+
+    // create a shader program
+    ShaderProgram shader;
+    shader.add("shaders/triangle.frag");
+    shader.add("shaders/triangle.vert");
+    shader.link();
 
     int dx = 1;
     int dz = 1;
-
-    // load a mesh
-    Mesh cubeMesh = Mesh::create(cubeVertices, cubeIndicies);
-    Mesh lightMesh = Mesh::create(lightVertices, cubeIndicies);
-    Mesh basePlateMesh = Mesh::create(cubeVertices, basePlateIndices);
-
-    // define world objects
-    MeshContainer meshes = MeshContainer::create();
-    MeshContainer::add_mesh(&meshes, &mesh_object, &cubeMesh);
-    MeshContainer::add_mesh(&meshes, &mesh_object1, &cubeMesh);
-    MeshContainer::add_mesh(&meshes, &base_plate_object, &basePlateMesh);
-
-    // define camera
-    Camera camera = Camera::create(window, &camera_object);
-    Camera::bind(&camera);
-
-    // create a shader program
-    ShaderProgram shader = ShaderProgram::create();
-    ShaderProgram::add(&shader, "shaders/triangle.frag");
-    ShaderProgram::add(&shader, "shaders/triangle.vert");
-    ShaderProgram::link(&shader);
 
     double prevtime = glfwGetTime();
     while (!glfwWindowShouldClose(window))
@@ -449,34 +204,43 @@ int main(void)
         double dt = curtime - prevtime;
         prevtime = curtime;
 
+        /*
+            update call
+        */
+
+        handle_cursor_lock(window);
+
         if (fabsf(light_object1.position.x) > 2) dx*= -1;
         if (fabsf(light_object1.position.z) > 2) dz*= -1;
 
         light_object1.position.x += 2 * dx * dt;
         light_object1.position.z += 1.5 * dz * dt;
 
-        handle_cursor_lock(window);
+        camera.apply_inputs(dt);
 
-        Camera::apply_inputs(&camera, dt);
+        /*
+            draw call
+        */
 
         // Render background
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glClearColor(0.1, 0.1, 0.1, 1.0);
 
-        ShaderProgram::activate(&shader);
-        LightContainer::render(&lights, &shader);
+        shader.activate();
+        light1.render(&shader, &light_object1, 0);
+        light2.render(&shader, &light_object2, 1);
+        shader.set_uniform_1i("numLights", 2);
 
-        Camera::apply_viewport(&camera, &shader, "view");
-        Camera::apply_position(&camera, &shader, "cameraPosition");
+        camera.apply_viewport(&shader, "view");
+        camera.apply_position(&shader, "cameraPosition");
 
-        MeshContainer::render(&meshes, &shader);
+        cubeMesh.draw(&shader, &mesh_object);
+        cubeMesh.draw(&shader, &mesh_object1);
+        basePlateMesh.draw(&shader, &base_plate_object);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
-
-    ShaderProgram::destroy(&shader);
-    Mesh::destroy(&cubeMesh);
 
     glfwTerminate();
     return 0;

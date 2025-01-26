@@ -10,16 +10,15 @@ struct Mesh {
     ElementBuffer EBO;
 
     // creates a mesh
-    static Mesh create(
+    Mesh(
         const std::vector<Vertex>& vertices, 
         const std::vector<GLuint>& indices
     );
 
-    // destroys a mesh
-    static void destroy(Mesh* mesh);
+    ~Mesh();
 
     // draws mesh with shader
-    static void draw(const Mesh* mesh, const WorldObject* binding, const ShaderProgram* shader);
+    void draw(const ShaderProgram* shader, const SceneObject* binding);
 };
 
 #endif

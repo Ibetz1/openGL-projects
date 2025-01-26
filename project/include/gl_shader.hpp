@@ -15,38 +15,38 @@ struct ShaderProgram {
     ProgramStatus status;
 
     // create a shader program
-    static ShaderProgram create();
+    ShaderProgram();
 
     // free up a shader program
-    static void destroy(ShaderProgram* program);
+    ~ShaderProgram();
 
     // add and compile a shader to a shader program via the file path
-    static void add(ShaderProgram* program, const char* path);
+    void add(const char* path);
 
     // link a shader program for after shaders have been added
-    static void link(ShaderProgram* program);
+    void link();
 
     // use a compiled and linked shader program
-    static void activate(const ShaderProgram* program);
+    void activate() const;
 
     /*
         for setting uniforms
     */
 
     // set 1int unfirom
-    static void set_uniform_1i(const ShaderProgram* program, const char* name, const GLint uni);
+    void set_uniform_1i(const char* name, const GLint uni) const;
 
     // set a float uniform
-    static void set_uniform_1f(const ShaderProgram* program, const char* name, const GLfloat data);
+    void set_uniform_1f(const char* name, const GLfloat data) const;
 
     // set 4fv vector uniform
-    static void set_uniform_4fv(const ShaderProgram* progam, const char* name, const GLfloat* uni);
+    void set_uniform_4fv(const char* name, const GLfloat* uni) const;
 
     // set 3fv vector unfiform
-    static void set_uniform_3fv(const ShaderProgram* program, const char* name, const GLfloat* uni);
+    void set_uniform_3fv(const char* name, const GLfloat* uni) const;
 
     // set 4fv matrix uniform
-    static void set_uniform_matrix_4fv(const ShaderProgram* progam, const char* name, const GLfloat* uni);
+    void set_uniform_matrix_4fv(const char* name, const GLfloat* uni) const;
 
 
 };

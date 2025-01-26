@@ -21,16 +21,18 @@
 #include <stb/stb_image.h>
 
 #define check_alloc(ptr) ({ if (!ptr) LOGE("allocation failed, non mem"); ptr; })
-#define LOGI(fmt, ...) printf(fmt "\n", ##__VA_ARGS__)
-#define LOGE(fmt, ...) fprintf(stderr, fmt "\n", ##__VA_ARGS__)
+#define LOGI(fmt, ...) do { printf(fmt "\n", ##__VA_ARGS__); } while (0)
+#define LOGE(fmt, ...) do { fprintf(stderr, fmt "\n", ##__VA_ARGS__); } while (0)
+#define THROW(fmt, ...) do { LOGE(__FILE__ " " fmt, ##__VA_ARGS__); exit(1); } while (0)
 #define MIN(T, a, b) ({ T _a = a; T _b = b; (_a < _b) ? _a : _b; })
 #define MAX(T, a, b) ({ T _a = a; T _b = b; (_a < _b) ? _b : _a; })
 
 #include "gl_shader.hpp"
 
 // game objects
-#include "world_object.hpp"
-#include "world_camera.hpp"
+#include "scene_object.hpp"
+#include "scene_camera.hpp"
+#include "scene_light.hpp"
 
 // mesh
 #include "gl_vertex.hpp"
@@ -39,8 +41,5 @@
 #include "gl_vertex_array.hpp"
 #include "gl_texture.hpp"
 #include "gl_mesh.hpp"
-
-// hot reloading
-#include "hot_reload.hpp"
 
 #endif

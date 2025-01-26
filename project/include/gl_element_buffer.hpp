@@ -5,16 +5,19 @@ struct ElementBuffer {
     GLuint id;
 
     // create an element buffer from an array of indices
-    static ElementBuffer create(std::vector<GLuint>& data);
+    ElementBuffer();
 
     // destroy an element buffer
-    static void destroy(ElementBuffer* buffer);
+    ~ElementBuffer();
+
+    // init the element buffer object within openGL
+    void init(const std::vector<GLuint>& data);
 
     // bind as current element buffer
-    static void bind(const ElementBuffer* buffer);
+    void bind();
 
     // unbind current element buffer
-    static void unbind();
+    void unbind();
 };
 
 #endif

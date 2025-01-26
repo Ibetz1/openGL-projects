@@ -1,32 +1,25 @@
 #include "main.hpp"
 
-VertexArray VertexArray::create() {
-    VertexArray array = { 0 };
+VertexArray::VertexArray() {}
 
-    glGenVertexArrays(1, &array.id);
-    glBindVertexArray(array.id);
-
-    return array;
+VertexArray::~VertexArray() {
+    glDeleteVertexArrays(1, &this->id);
 }
 
-void VertexArray::destroy(VertexArray* array) {
-    if (!array) return;
-
-    glDeleteVertexArrays(1, &array->id);
-    *array = { 0 };
+void VertexArray::init() {
+    glGenVertexArrays(1, &this->id);
+    glBindVertexArray(this->id);
 }
 
-void VertexArray::bind(const VertexArray* array) {
-    if (!array) return;
-
-    glBindVertexArray(array->id);
+void VertexArray::bind() const {
+    glBindVertexArray(this->id);
 }
 
-void VertexArray::unbind() {
+void VertexArray::unbind() const {
     glBindVertexArray(0);
 }
 
-void VertexArray::add_attribute(const VertexArray* array, const Attribute attribute) {
+void VertexArray::add_attribute(const Attribute attribute) const {
     glVertexAttribPointer(
         attribute.index, 
         attribute.size, 

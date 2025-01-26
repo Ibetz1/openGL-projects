@@ -5,16 +5,19 @@ struct VertexBuffer {
     GLuint id;
 
     // create vertex buffer given an array of vertices
-    static VertexBuffer create(std::vector<Vertex>& vertices);
+    VertexBuffer();
 
     // destroy vertex buffer
-    static void destroy(VertexBuffer* buffer);
+    ~VertexBuffer();
+
+    // generate vertex buffer
+    void init(const std::vector<Vertex>& vertice);
 
     // bind as current vertex buffer
-    static void bind(const VertexBuffer* buffer);
+    void bind() const;
 
     // unbind as current vertex buffer
-    static void unbind();
+    void unbind() const;
 };
 
 #endif
